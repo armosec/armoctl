@@ -1,0 +1,26 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Run Unit Tests
+        run: |
+          go test -v ./... -covermode=count -coverprofile=coverage.out
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          only-new-issues: true

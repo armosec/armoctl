@@ -1,0 +1,29 @@
+{
+  "family": "armoctl-test-task",
+  "cpu": "256",
+  "memory": "512",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "containerDefinitions": [
+    {
+      "name": "web",
+      "image": "nginx:latest",
+      "essential": true,
+      "command": ["nginx", "-g", "daemon off;"],
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/armoctl-test",
+          "awslogs-region": "eu-north-1",
+          "awslogs-stream-prefix": "web"
+        }
+      }
+    }
+  ]
+}
