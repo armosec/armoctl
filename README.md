@@ -2,17 +2,15 @@
 
 CLI tool for instrumenting ECS task definitions with the ARMO runtime security agent.
 
-## Build
+## 🔨 Build
 
 ```bash
 make armoctl
 ```
 
-## Authentication
+## 🔑 Authentication
 
 Credentials are only required when using `--register` / `--deploy` to push changes to AWS. Preview/patch operations work without authentication.
-
-Get your credentials from **Settings > Access Keys** in the [ARMO platform](https://cloud.armosec.io).
 
 Pass credentials via flags, environment variables, or config file:
 
@@ -30,7 +28,7 @@ customer-guid: <GUID>
 access-key: <KEY>
 ```
 
-## Commands
+## 📋 Commands
 
 ### `ecs patch` — Patch a task definition file
 
@@ -74,7 +72,7 @@ armoctl ecs instrument -c my-cluster -s my-service --deploy
 armoctl version
 ```
 
-## What the patcher does
+## ⚙️ What the patcher does
 
 When you patch a task definition, armoctl:
 
@@ -86,7 +84,7 @@ When you patch a task definition, armoctl:
 
 Containers without a `command` (relying on image ENTRYPOINT/CMD) are instrumented via dependency and volume mounts but their entrypoint is not modified.
 
-## Flags reference
+## 🚩 Flags reference
 
 | Flag | Env var | Description |
 |------|---------|-------------|
