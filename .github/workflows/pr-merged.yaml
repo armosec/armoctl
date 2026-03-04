@@ -62,7 +62,7 @@ jobs:
             - name: Configure AWS Credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
-                  role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+                  role-to-assume: arn:aws:iam::057134155174:role/GithubActionsPrivateNodeAgent
                   aws-region: eu-north-1
 
             - name: Upload armoctl artifacts to S3
@@ -85,7 +85,7 @@ jobs:
                   done
 
                   echo "Uploading armoctl install.sh to S3..."
-                  aws s3 cp cmd/armoctl/install.sh \
+                  aws s3 cp install.sh \
                     s3://armo-host-agent-publish-repository/armoctl/install.sh
 
             - name: Invalidate CloudFront cache
