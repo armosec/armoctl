@@ -30,15 +30,17 @@ jobs:
             - name: Get next version
               id: version
               run: |
-                  LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v0\.0\.[0-9]+$' | head -1)
+                  LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
                   if [ -z "$LATEST_TAG" ]; then
-                    NEXT=1
+                    NEXT_TAG="v0.0.1"
                   else
-                    CURRENT=${LATEST_TAG##*.}
-                    NEXT=$((CURRENT + 1))
+                    MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
+                    MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+                    PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
+                    NEXT_TAG="${MAJOR}.${MINOR}.$((PATCH + 1))"
                   fi
-                  echo "tag=v0.0.${NEXT}" >> $GITHUB_OUTPUT
-                  echo "Next version: v0.0.${NEXT}"
+                  echo "tag=${NEXT_TAG}" >> $GITHUB_OUTPUT
+                  echo "Next version: ${NEXT_TAG}"
 
             - name: Create Git Tag
               run: git tag "${{ steps.version.outputs.tag }}"
