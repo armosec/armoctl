@@ -66,16 +66,22 @@ jobs:
             - name: Upload armoctl artifacts to S3
               run: |
                   echo "Uploading armoctl artifacts to S3..."
-                  for os in linux darwin; do
+                  for os in linux darwin windows; do
                     for arch in amd64 arm64; do
-                      artifact="dist/armoctl_${os}_${arch}_v1/armoctl"
+                      if [ "$os" = "windows" ]; then
+                        artifact="dist/armoctl_${os}_${arch}_v1/armoctl.exe"
+                        suffix=".exe"
+                      else
+                        artifact="dist/armoctl_${os}_${arch}_v1/armoctl"
+                        suffix=""
+                      fi
                       if [ -f "$artifact" ]; then
                         # Versioned release
                         aws s3 cp "$artifact" \
-                          "s3://armo-host-agent-publish-repository/armoctl/releases/${{ steps.version.outputs.tag }}/armoctl_${os}_${arch}"
+                          "s3://armo-host-agent-publish-repository/armoctl/releases/${{ steps.version.outputs.tag }}/armoctl_${os}_${arch}${suffix}"
                         # Latest alias
                         aws s3 cp "$artifact" \
-                          "s3://armo-host-agent-publish-repository/armoctl/armoctl_latest_${os}_${arch}"
+                          "s3://armo-host-agent-publish-repository/armoctl/armoctl_latest_${os}_${arch}${suffix}"
                       else
                         echo "Warning: $artifact not found, skipping"
                       fi
