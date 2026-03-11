@@ -3,7 +3,6 @@ package ecs
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -48,7 +47,7 @@ func runInstrument(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("fetching service task definition: %w", err)
 	}
 
-	if err := patchAndPrint(td, patchOpts(cmd), sidecarConfig(cmd)); err != nil {
+	if err := patchAndPrint(cmd, td, patchOpts(cmd), sidecarConfig(cmd)); err != nil {
 		return err
 	}
 
@@ -57,8 +56,8 @@ func runInstrument(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("registering and updating service: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "Registered task definition: %s\n", newArn)
-		fmt.Fprintf(os.Stderr, "Updated service %s in cluster %s\n", service, cluster)
+		cmd.PrintErrf("Registered task definition: %s\n", newArn)
+		cmd.PrintErrf("Updated service %s in cluster %s\n", service, cluster)
 	}
 
 	return nil

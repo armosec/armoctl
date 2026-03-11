@@ -6,7 +6,6 @@ on:
             - "main"
         paths-ignore:
             - "**.md"
-            - ".github/workflows/*"
 
     workflow_dispatch:
 
@@ -28,28 +27,27 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: Get build number
-              id: get-build
-              uses: mlilback/build-number@v1
-              with:
-                  base: 0
-                  run-id: ${{ github.run_number }}
+            - name: Get next version
+              id: version
+              run: |
+                  LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+                  if [ -z "$LATEST_TAG" ]; then
+                    NEXT_TAG="v0.0.1"
+                  else
+                    MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
+                    MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+                    PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
+                    NEXT_TAG="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                  fi
+                  echo "tag=${NEXT_TAG}" >> $GITHUB_OUTPUT
+                  echo "Next version: ${NEXT_TAG}"
 
             - name: Create Git Tag
-              uses: actions/github-script@v7
-              with:
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-                  script: |
-                      github.rest.git.createRef({
-                        owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        ref: `refs/tags/v0.0.${process.env.BUILD_NUMBER}`,
-                        sha: context.sha
-                      });
+              run: git tag "${{ steps.version.outputs.tag }}"
 
             - uses: actions/setup-go@v5
               with:
-                  go-version: "1.25"
+                  go-version: "1.26.0"
 
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v6
@@ -68,20 +66,13 @@ jobs:
             - name: Upload armoctl artifacts to S3
               run: |
                   echo "Uploading armoctl artifacts to S3..."
-                  for os in linux darwin; do
-                    for arch in amd64 arm64; do
-                      artifact="dist/armoctl_${os}_${arch}_v1/armoctl"
-                      if [ -f "$artifact" ]; then
-                        # Versioned release
-                        aws s3 cp "$artifact" \
-                          "s3://armo-host-agent-publish-repository/armoctl/releases/v0.0.${BUILD_NUMBER}/armoctl_${os}_${arch}"
-                        # Latest alias
-                        aws s3 cp "$artifact" \
-                          "s3://armo-host-agent-publish-repository/armoctl/armoctl_latest_${os}_${arch}"
-                      else
-                        echo "Warning: $artifact not found, skipping"
-                      fi
-                    done
+                  jq -r '.[] | select(.type == "Binary") | [.path, .goos, .goarch, .extra.Ext] | @tsv' dist/artifacts.json | \
+                  while IFS=$'\t' read -r path goos goarch ext; do
+                    echo "Uploading ${goos}/${goarch}..."
+                    aws s3 cp "$path" \
+                      "s3://armo-host-agent-publish-repository/armoctl/releases/${{ steps.version.outputs.tag }}/armoctl_${goos}_${goarch}${ext}"
+                    aws s3 cp "$path" \
+                      "s3://armo-host-agent-publish-repository/armoctl/armoctl_latest_${goos}_${goarch}${ext}"
                   done
 
                   echo "Uploading armoctl install.sh to S3..."
@@ -97,10 +88,12 @@ jobs:
 
             - name: Publish Release
               uses: actions/github-script@v7
+              env:
+                  RELEASE_TAG: ${{ steps.version.outputs.tag }}
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   script: |
                       const { owner, repo } = context.repo;
                       const releases = await github.rest.repos.listReleases({ owner, repo });
-                      const release = releases.data.find(r => r.tag_name === `v0.0.${process.env.BUILD_NUMBER}`);
+                      const release = releases.data.find(r => r.tag_name === process.env.RELEASE_TAG);
                       await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, draft: false });
