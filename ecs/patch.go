@@ -41,7 +41,7 @@ func runPatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading task definition: %w", err)
 	}
 
-	if err := patchAndPrint(td, patchOpts(cmd), sidecarConfig(cmd)); err != nil {
+	if err := patchAndPrint(cmd, td, patchOpts(cmd), sidecarConfig(cmd)); err != nil {
 		return err
 	}
 
@@ -53,7 +53,7 @@ func runPatch(cmd *cobra.Command, args []string) error {
 		if _, err := registerTaskDef(cmd.Context(), client, td); err != nil {
 			return fmt.Errorf("registering task definition: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "Registered task definition: %s\n", aws.ToString(td.Family))
+		cmd.PrintErrf("Registered task definition: %s\n", aws.ToString(td.Family))
 	}
 
 	return nil
