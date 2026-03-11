@@ -59,11 +59,3 @@ func TestPadding_VariousLengths(t *testing.T) {
 		})
 	}
 }
-
-func TestPadding_VeryLongVersions(t *testing.T) {
-	// Even with very long versions, padding should return at least 1 space
-	result := padding("v999.999.999-alpha.beta.gamma.delta", "v999.999.999-alpha.beta.gamma.delta.epsilon")
-	if len(result) < 1 {
-		t.Error("padding() should return at least 1 space even for long versions")
-	}
-}

@@ -9,7 +9,7 @@ import (
 
 const (
 	// CacheTTL is how long the cached version info is considered valid.
-	CacheTTL = 24 * time.Hour
+	CacheTTL = 1 * time.Hour
 
 	// CacheDir is the subdirectory under ~/.armoctl for cache files.
 	CacheDir = "cache"

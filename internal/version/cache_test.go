@@ -103,7 +103,7 @@ func TestIsCacheStale(t *testing.T) {
 		{
 			name: "old cache is stale",
 			cached: &CachedVersions{
-				FetchedAt: time.Now().Add(-25 * time.Hour), // Older than CacheTTL
+				FetchedAt: time.Now().Add(-2 * time.Hour), // Older than CacheTTL
 				Versions:  Versions{Armoctl: "v1.0.0"},
 			},
 			wantStale: true,
@@ -111,7 +111,7 @@ func TestIsCacheStale(t *testing.T) {
 		{
 			name: "cache at TTL boundary is not stale",
 			cached: &CachedVersions{
-				FetchedAt: time.Now().Add(-23 * time.Hour), // Just under CacheTTL
+				FetchedAt: time.Now().Add(-50 * time.Minute), // Just under CacheTTL
 				Versions:  Versions{Armoctl: "v1.0.0"},
 			},
 			wantStale: false,
