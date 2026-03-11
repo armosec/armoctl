@@ -68,13 +68,20 @@ jobs:
             - name: Upload armoctl artifacts to S3
               run: |
                   echo "Uploading armoctl artifacts to S3..."
-                  jq -r '.[] | select(.type == "Binary") | [.path, .goos, .goarch, .extra.Ext] | @tsv' dist/artifacts.json | \
-                  while IFS=$'\t' read -r path goos goarch ext; do
-                    echo "Uploading ${goos}/${goarch}..."
-                    aws s3 cp "$path" \
-                      "s3://armo-host-agent-publish-repository/armoctl/releases/${{ steps.version.outputs.tag }}/armoctl_${goos}_${goarch}${ext}"
-                    aws s3 cp "$path" \
-                      "s3://armo-host-agent-publish-repository/armoctl/armoctl_latest_${goos}_${goarch}${ext}"
+                  for os in linux darwin; do
+                    for arch in amd64 arm64; do
+                      artifact="dist/armoctl_${os}_${arch}_v1/armoctl"
+                      if [ -f "$artifact" ]; then
+                        # Versioned release
+                        aws s3 cp "$artifact" \
+                          "s3://armo-host-agent-publish-repository/armoctl/releases/v0.0.${BUILD_NUMBER}/armoctl_${os}_${arch}"
+                        # Latest alias
+                        aws s3 cp "$artifact" \
+                          "s3://armo-host-agent-publish-repository/armoctl/armoctl_latest_${os}_${arch}"
+                      else
+                        echo "Warning: $artifact not found, skipping"
+                      fi
+                    done
                   done
 
                   echo "Uploading armoctl install.sh to S3..."
