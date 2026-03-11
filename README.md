@@ -2,6 +2,12 @@
 
 CLI tool for instrumenting ECS task definitions with the ARMO runtime security agent.
 
+## 📦 Install
+
+```bash
+curl -fsSL https://package-distribution.armosec.io/armoctl/install.sh | bash
+```
+
 ## 🔨 Build
 
 ```bash
