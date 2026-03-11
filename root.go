@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -87,11 +88,11 @@ func showUpdateBanner(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Wait for the check to complete (should be instant if already done)
+	// Wait briefly for the check to complete
 	select {
 	case info := <-updateCheckResult:
 		versionpkg.PrintUpdateBanner(info)
-	default:
-		// Check not complete yet, don't block
+	case <-time.After(1 * time.Second):
+		// Don't block the user for too long
 	}
 }
