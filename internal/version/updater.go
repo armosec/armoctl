@@ -105,7 +105,7 @@ func downloadToTempWithContext(ctx context.Context, url string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("downloading update: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download failed with status: %d", resp.StatusCode)
@@ -123,13 +123,13 @@ func downloadToTempWithContext(ctx context.Context, url string) (string, error) 
 
 	// Copy download to temp file
 	n, err := io.Copy(tmpFile, limitedReader)
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	if err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return "", fmt.Errorf("writing update: %w", err)
 	}
 	if n > MaxBinarySize {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return "", fmt.Errorf("download exceeds maximum size (%d bytes)", MaxBinarySize)
 	}
 
@@ -193,13 +193,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err

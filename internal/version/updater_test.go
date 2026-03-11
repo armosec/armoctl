@@ -38,7 +38,7 @@ func TestBuildDownloadURL_Platform(t *testing.T) {
 func TestDownloadToTempWithContext(t *testing.T) {
 	// Create a test server that returns a fake binary
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("fake binary content"))
+		_, _ = w.Write([]byte("fake binary content"))
 	}))
 	defer server.Close()
 
@@ -96,7 +96,7 @@ func TestDownloadToTempWithContext_NotFound(t *testing.T) {
 
 func TestDownloadToTempWithContext_ContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("content"))
+		_, _ = w.Write([]byte("content"))
 	}))
 	defer server.Close()
 
@@ -115,7 +115,7 @@ func TestCheckWritable(t *testing.T) {
 	tmpFile := filepath.Join(tmpDir, "test-binary")
 
 	// Create a dummy file
-	os.WriteFile(tmpFile, []byte("test"), 0755)
+	_ = os.WriteFile(tmpFile, []byte("test"), 0755)
 
 	// Should succeed for writable directory
 	err := checkWritable(tmpFile)
@@ -134,11 +134,11 @@ func TestCheckWritable_ReadOnlyDirectory(t *testing.T) {
 	tmpFile := filepath.Join(tmpDir, "test-binary")
 
 	// Create a dummy file
-	os.WriteFile(tmpFile, []byte("test"), 0755)
+	_ = os.WriteFile(tmpFile, []byte("test"), 0755)
 
 	// Make directory read-only
-	os.Chmod(tmpDir, 0555)
-	defer os.Chmod(tmpDir, 0755) // Restore for cleanup
+	_ = os.Chmod(tmpDir, 0555)
+	defer func() { _ = os.Chmod(tmpDir, 0755) }() // Restore for cleanup
 
 	// Should fail for read-only directory
 	err := checkWritable(tmpFile)
@@ -152,11 +152,11 @@ func TestReplaceBinary(t *testing.T) {
 
 	// Create "current" binary
 	currentPath := filepath.Join(tmpDir, "current-binary")
-	os.WriteFile(currentPath, []byte("old content"), 0755)
+	_ = os.WriteFile(currentPath, []byte("old content"), 0755)
 
 	// Create "new" binary
 	newPath := filepath.Join(tmpDir, "new-binary")
-	os.WriteFile(newPath, []byte("new content"), 0644)
+	_ = os.WriteFile(newPath, []byte("new content"), 0644)
 
 	// Replace
 	err := replaceBinary(currentPath, newPath)
@@ -199,7 +199,7 @@ func TestReplaceBinary_RestoresBackupOnFailure(t *testing.T) {
 
 	// Create "current" binary
 	currentPath := filepath.Join(tmpDir, "current-binary")
-	os.WriteFile(currentPath, []byte("old content"), 0755)
+	_ = os.WriteFile(currentPath, []byte("old content"), 0755)
 
 	// Non-existent new file (will cause error)
 	newPath := filepath.Join(tmpDir, "non-existent")
@@ -227,7 +227,7 @@ func TestCopyFile(t *testing.T) {
 	dstPath := filepath.Join(tmpDir, "dest")
 
 	// Create source file
-	os.WriteFile(srcPath, []byte("test content"), 0644)
+	_ = os.WriteFile(srcPath, []byte("test content"), 0644)
 
 	// Copy
 	err := copyFile(srcPath, dstPath)

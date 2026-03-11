@@ -111,7 +111,7 @@ func TestFetchLatestFromURL(t *testing.T) {
 		{
 			name: "successful fetch",
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				json.NewEncoder(w).Encode(Versions{
+				_ = json.NewEncoder(w).Encode(Versions{
 					Armoctl:     "v1.0.0",
 					Operator:    "v2.0.0",
 					PtraceAgent: "v3.0.0",
@@ -141,14 +141,14 @@ func TestFetchLatestFromURL(t *testing.T) {
 		{
 			name: "server returns invalid JSON",
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte("not json"))
+				_, _ = w.Write([]byte("not json"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "server returns empty JSON",
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte("{}"))
+				_, _ = w.Write([]byte("{}"))
 			},
 			wantErr:      false,
 			wantVersions: &Versions{},
@@ -191,7 +191,7 @@ func TestFetchLatestFromURL_ContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Simulate slow server
 		time.Sleep(100 * time.Millisecond)
-		json.NewEncoder(w).Encode(Versions{Armoctl: "v1.0.0"})
+		_ = json.NewEncoder(w).Encode(Versions{Armoctl: "v1.0.0"})
 	}))
 	defer server.Close()
 
@@ -208,14 +208,14 @@ func TestFetchLatestFromURL_ResponseSizeLimit(t *testing.T) {
 	// Create a response larger than MaxResponseSize
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Write valid JSON prefix, then padding, to exceed limit
-		w.Write([]byte(`{"armoctl":"v1.0.0"`))
+		_, _ = w.Write([]byte(`{"armoctl":"v1.0.0"`))
 		// Write enough data to exceed the limit (but the limit reader will truncate)
 		padding := make([]byte, MaxResponseSize+1000)
 		for i := range padding {
 			padding[i] = ' '
 		}
-		w.Write(padding)
-		w.Write([]byte(`}`))
+		_, _ = w.Write(padding)
+		_, _ = w.Write([]byte(`}`))
 	}))
 	defer server.Close()
 
@@ -294,7 +294,7 @@ func TestGetAgentImage_WithCache(t *testing.T) {
 		Operator:    "v2.0.0",
 		PtraceAgent: "v3.0.0",
 	}
-	SaveCache(versions)
+	_ = SaveCache(versions)
 
 	image := GetAgentImage()
 
@@ -332,7 +332,7 @@ func TestGetOperatorImage_WithCache(t *testing.T) {
 		Operator:    "v2.0.0",
 		PtraceAgent: "v3.0.0",
 	}
-	SaveCache(versions)
+	_ = SaveCache(versions)
 
 	image := GetOperatorImage("eu-west-1")
 
@@ -350,7 +350,7 @@ func TestGetOperatorImage_DifferentRegions(t *testing.T) {
 	defer os.Setenv("HOME", originalHome)
 
 	versions := &Versions{Operator: "v1.0.0"}
-	SaveCache(versions)
+	_ = SaveCache(versions)
 
 	regions := []string{"us-east-1", "us-west-2", "eu-north-1", "ap-southeast-1"}
 	for _, region := range regions {
