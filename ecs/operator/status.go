@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
-	"github.com/spf13/cobra"
 
 	"charm.land/lipgloss/v2"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/spf13/cobra"
 )
 
 var statusCmd = &cobra.Command{

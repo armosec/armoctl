@@ -63,7 +63,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	verifyCmd := exec.Command(execPath, "version")
 	verifyCmd.Stdout = os.Stdout
 	verifyCmd.Stderr = os.Stderr
-	_ = verifyCmd.Run() // Ignore error, just for display
+	if err := verifyCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to verify updated binary: %v\n", err)
+	}
 
 	return nil
 }

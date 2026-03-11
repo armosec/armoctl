@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -249,20 +250,7 @@ func isStackNotFoundError(err error) bool {
 		return false
 	}
 	errMsg := err.Error()
-	return contains(errMsg, "does not exist") || contains(errMsg, "not found")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsImpl(s, substr))
-}
-
-func containsImpl(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(errMsg, "does not exist") || strings.Contains(errMsg, "not found")
 }
 
 // describeStack returns information about a CloudFormation stack.

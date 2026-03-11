@@ -19,7 +19,7 @@ var EcsCmd = &cobra.Command{
 
 func init() {
 	EcsCmd.PersistentFlags().StringSlice("container", nil, "Container names to patch (repeatable; default: all)")
-	EcsCmd.PersistentFlags().String("agent-image", "", "Agent sidecar image (default: latest from ARMO)")
+	EcsCmd.PersistentFlags().String("agent-image", "", "Agent sidecar image")
 	EcsCmd.PersistentFlags().Bool("volume-fixer", false, "Include a volume-fixer init container to chmod the shared volume")
 
 	EcsCmd.AddCommand(operator.OperatorCmd)

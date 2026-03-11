@@ -74,16 +74,16 @@ func checkWritable(path string) error {
 		return fmt.Errorf("checking directory: %w", err)
 	}
 
+	_ = info // Used for the stat check
+
 	// Try to create a temp file in the directory to check write access
-	testFile := filepath.Join(dir, ".armoctl-update-test")
-	f, err := os.Create(testFile)
+	f, err := os.CreateTemp(dir, ".armoctl-update-*")
 	if err != nil {
 		return fmt.Errorf("cannot write to %s: %w\nTry moving armoctl to a user-writable location", dir, err)
 	}
+	tmpName := f.Name()
 	f.Close()
-	os.Remove(testFile)
-
-	_ = info // Used for the stat check
+	os.Remove(tmpName)
 	return nil
 }
 
@@ -119,14 +119,18 @@ func downloadToTempWithContext(ctx context.Context, url string) (string, error) 
 	tmpPath := tmpFile.Name()
 
 	// Limit download size to prevent OOM from malicious servers
-	limitedReader := io.LimitReader(resp.Body, MaxBinarySize)
+	limitedReader := io.LimitReader(resp.Body, MaxBinarySize+1)
 
 	// Copy download to temp file
-	_, err = io.Copy(tmpFile, limitedReader)
+	n, err := io.Copy(tmpFile, limitedReader)
 	tmpFile.Close()
 	if err != nil {
 		os.Remove(tmpPath)
 		return "", fmt.Errorf("writing update: %w", err)
+	}
+	if n > MaxBinarySize {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("download exceeds maximum size (%d bytes)", MaxBinarySize)
 	}
 
 	return tmpPath, nil
