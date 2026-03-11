@@ -37,9 +37,9 @@ func init() {
 	_ = viper.BindPFlag("customer-guid", rootCmd.PersistentFlags().Lookup("customer-guid"))
 	_ = viper.BindPFlag("access-key", rootCmd.PersistentFlags().Lookup("access-key"))
 
-	viper.BindEnv("api-url", "ARMO_API_URL")
-	viper.BindEnv("customer-guid", "ARMO_CUSTOMER_GUID")
-	viper.BindEnv("access-key", "ARMO_ACCESS_KEY")
+	_ = viper.BindEnv("api-url", "ARMO_API_URL")
+	_ = viper.BindEnv("customer-guid", "ARMO_CUSTOMER_GUID")
+	_ = viper.BindEnv("access-key", "ARMO_ACCESS_KEY")
 }
 
 func initConfig() {

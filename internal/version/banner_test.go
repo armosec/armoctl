@@ -29,7 +29,7 @@ func TestPrintUpdateBanner_NoUpdate(t *testing.T) {
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 
 	// Should not print anything when no update
 	if buf.Len() > 0 {

@@ -71,8 +71,8 @@ func TestLoadCache_InvalidJSON(t *testing.T) {
 
 	// Create cache directory and invalid file
 	cacheDir := filepath.Join(tmpDir, ".armoctl", "cache")
-	os.MkdirAll(cacheDir, 0755)
-	os.WriteFile(filepath.Join(cacheDir, "versions.json"), []byte("not json"), 0644)
+	_ = os.MkdirAll(cacheDir, 0755)
+	_ = os.WriteFile(filepath.Join(cacheDir, "versions.json"), []byte("not json"), 0644)
 
 	// Should return nil for invalid JSON
 	cached := LoadCache()
