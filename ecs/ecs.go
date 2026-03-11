@@ -52,7 +52,7 @@ func sidecarConfig(cmd *cobra.Command) patcher.SidecarConfig {
 }
 
 // patchAndPrint patches a task definition and prints the JSON result to stdout.
-func patchAndPrint(td *patcher.TaskDefinition, opts patcher.PatchOptions, sidecar patcher.SidecarConfig) error {
+func patchAndPrint(cmd *cobra.Command, td *patcher.TaskDefinition, opts patcher.PatchOptions, sidecar patcher.SidecarConfig) error {
 	if err := patcher.Patch(td, opts, sidecar); err != nil {
 		return fmt.Errorf("patching task definition: %w", err)
 	}
@@ -60,7 +60,7 @@ func patchAndPrint(td *patcher.TaskDefinition, opts patcher.PatchOptions, sideca
 	if err != nil {
 		return fmt.Errorf("marshaling output: %w", err)
 	}
-	fmt.Println(string(out))
+	cmd.Println(string(out))
 	return nil
 }
 

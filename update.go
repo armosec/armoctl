@@ -22,7 +22,7 @@ func init() {
 
 func runUpdate(cmd *cobra.Command, args []string) error {
 	// Fetch latest version info
-	fmt.Println("Checking for updates...")
+	cmd.Println("Checking for updates...")
 
 	latest, err := versionpkg.FetchLatest()
 	if err != nil {
@@ -32,39 +32,39 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Check if update is needed
 	info := versionpkg.CheckForUpdates(Version, latest)
 	if !info.HasUpdate {
-		fmt.Printf("armoctl is already up to date (version %s)\n", Version)
+		cmd.Printf("armoctl is already up to date (version %s)\n", Version)
 		return nil
 	}
 
-	fmt.Printf("Current version: %s\n", Version)
-	fmt.Printf("Latest version:  %s\n", latest.Armoctl)
-	fmt.Println()
+	cmd.Printf("Current version: %s\n", Version)
+	cmd.Printf("Latest version:  %s\n", latest.Armoctl)
+	cmd.Println()
 
 	// Show where the binary is located
 	execPath, err := versionpkg.GetExecutablePath()
 	if err != nil {
 		return fmt.Errorf("getting executable path: %w", err)
 	}
-	fmt.Printf("Binary location: %s\n", execPath)
-	fmt.Println()
+	cmd.Printf("Binary location: %s\n", execPath)
+	cmd.Println()
 
 	// Perform the update
-	fmt.Println("Downloading update...")
+	cmd.Println("Downloading update...")
 	if err := versionpkg.SelfUpdate(); err != nil {
 		return fmt.Errorf("updating: %w", err)
 	}
 
-	fmt.Println()
-	fmt.Printf("Successfully updated to %s\n", latest.Armoctl)
+	cmd.Println()
+	cmd.Printf("Successfully updated to %s\n", latest.Armoctl)
 
 	// Verify the update by running version command
-	fmt.Println()
-	fmt.Println("Verifying installation:")
+	cmd.Println()
+	cmd.Println("Verifying installation:")
 	verifyCmd := exec.Command(execPath, "version")
 	verifyCmd.Stdout = os.Stdout
 	verifyCmd.Stderr = os.Stderr
 	if err := verifyCmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to verify updated binary: %v\n", err)
+		cmd.PrintErrf("warning: failed to verify updated binary: %v\n", err)
 	}
 
 	return nil
