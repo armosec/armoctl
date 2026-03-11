@@ -12,12 +12,16 @@ archives:
       ids:
           - armoctl
       name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    - id: binaries
+      ids:
+          - armoctl
+      format: binary
+      name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 builds:
     - id: armoctl
       main: .
       binary: armoctl
-      dir_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
       ldflags:
           - -X main.Version={{ .Version }}
           - -X main.commit={{ .ShortCommit }}
