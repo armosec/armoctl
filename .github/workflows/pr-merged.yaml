@@ -69,10 +69,10 @@ jobs:
                   for os in linux darwin windows; do
                     for arch in amd64 arm64; do
                       if [ "$os" = "windows" ]; then
-                        artifact="dist/armoctl_${os}_${arch}_v1/armoctl.exe"
+                        artifact="dist/armoctl_${os}_${arch}/armoctl.exe"
                         suffix=".exe"
                       else
-                        artifact="dist/armoctl_${os}_${arch}_v1/armoctl"
+                        artifact="dist/armoctl_${os}_${arch}/armoctl"
                         suffix=""
                       fi
                       if [ -f "$artifact" ]; then

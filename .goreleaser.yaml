@@ -17,6 +17,7 @@ builds:
     - id: armoctl
       main: .
       binary: armoctl
+      dir_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
       ldflags:
           - -X main.Version={{ .Version }}
           - -X main.commit={{ .ShortCommit }}
