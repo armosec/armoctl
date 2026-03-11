@@ -18,7 +18,7 @@ builds:
       main: .
       binary: armoctl
       ldflags:
-          - -X main.version={{ .Version }}
+          - -X main.Version={{ .Version }}
           - -X main.commit={{ .ShortCommit }}
           - -X main.buildTime={{ .Date }}
       env:

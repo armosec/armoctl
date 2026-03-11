@@ -7,5 +7,5 @@ ARCH?=$(shell go env GOARCH)
 
 armoctl:
 	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(ARCH) go build \
-		-ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)" \
+		-ldflags "-X main.Version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)" \
 		-o armoctl .
