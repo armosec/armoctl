@@ -15,7 +15,8 @@ archives:
     - id: binaries
       ids:
           - armoctl
-      format: binary
+      formats:
+          - binary
       name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 builds:
