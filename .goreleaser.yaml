@@ -12,6 +12,12 @@ archives:
       ids:
           - armoctl
       name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    - id: binaries
+      ids:
+          - armoctl
+      formats:
+          - binary
+      name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 builds:
     - id: armoctl
