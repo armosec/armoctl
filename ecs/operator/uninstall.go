@@ -68,8 +68,8 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 
 	// Confirm deletion
 	if !skipConfirm {
-		fmt.Fprintf(os.Stderr, "This will delete the CloudFormation stack %q and all its resources.\n", stackName)
-		fmt.Fprintf(os.Stderr, "Delete stack %q? [y/N] ", stackName)
+		cmd.PrintErrf("This will delete the CloudFormation stack %q and all its resources.\n", stackName)
+		cmd.PrintErrf("Delete stack %q? [y/N] ", stackName)
 
 		reader := bufio.NewReader(os.Stdin)
 		response, err := reader.ReadString('\n')
@@ -79,13 +79,13 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 
 		response = strings.TrimSpace(strings.ToLower(response))
 		if response != "y" && response != "yes" {
-			fmt.Fprintln(os.Stderr, "Aborted.")
+			cmd.PrintErrln("Aborted.")
 			return nil
 		}
 	}
 
 	// Delete the stack
-	fmt.Fprintf(os.Stderr, "Deleting stack %q...\n", stackName)
+	cmd.PrintErrf("Deleting stack %q...\n", stackName)
 
 	if err := DeleteStack(ctx, region, stackName); err != nil {
 		return err
@@ -95,7 +95,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	lastStatus := ""
 	err := WaitForStackDelete(ctx, region, stackName, func(status string) {
 		if status != lastStatus {
-			fmt.Fprintf(os.Stderr, "  Status: %s\n", status)
+			cmd.PrintErrf("  Status: %s\n", status)
 			lastStatus = status
 		}
 	})
@@ -103,8 +103,8 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "ARMO ECS Operator uninstalled successfully.\n")
+	cmd.PrintErrln()
+	cmd.PrintErrln("ARMO ECS Operator uninstalled successfully.")
 
 	return nil
 }

@@ -3,7 +3,6 @@ package operator
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -69,9 +68,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		var notFound *cftypes.StackNotFoundException
 		if errors.As(err, &notFound) {
 			if clusterName != "" {
-				fmt.Fprintf(os.Stderr, "Operator not installed in cluster %q\n", clusterName)
+				cmd.PrintErrf("Operator not installed in cluster %q\n", clusterName)
 			} else {
-				fmt.Fprintf(os.Stderr, "Stack %q not found\n", stackName)
+				cmd.PrintErrf("Stack %q not found\n", stackName)
 			}
 			return nil
 		}
@@ -79,33 +78,33 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print status
-	_, _ = fmt.Fprintf(os.Stdout, "Stack:      %s\n", output.StackName)
-	_, _ = fmt.Fprintf(os.Stdout, "Status:     %s\n", colorStatus(output.Status))
+	cmd.Printf("Stack:      %s\n", output.StackName)
+	cmd.Printf("Status:     %s\n", colorStatus(output.Status))
 	if output.StatusReason != "" {
-		_, _ = fmt.Fprintf(os.Stdout, "Reason:     %s\n", output.StatusReason)
+		cmd.Printf("Reason:     %s\n", output.StatusReason)
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "Created:    %s\n", output.CreationTime.Format("2006-01-02 15:04:05 MST"))
+	cmd.Printf("Created:    %s\n", output.CreationTime.Format("2006-01-02 15:04:05 MST"))
 	if output.LastUpdatedTime != nil {
-		_, _ = fmt.Fprintf(os.Stdout, "Updated:    %s\n", output.LastUpdatedTime.Format("2006-01-02 15:04:05 MST"))
+		cmd.Printf("Updated:    %s\n", output.LastUpdatedTime.Format("2006-01-02 15:04:05 MST"))
 	}
-	_, _ = fmt.Fprintln(os.Stdout)
+	cmd.Println()
 
 	if output.EcsOperatorServiceArn != "" {
-		_, _ = fmt.Fprintf(os.Stdout, "Service:    %s\n", output.EcsOperatorServiceArn)
+		cmd.Printf("Service:    %s\n", output.EcsOperatorServiceArn)
 	}
 	if output.EcsOperatorTaskDefinitionArn != "" {
-		_, _ = fmt.Fprintf(os.Stdout, "Task Def:   %s\n", output.EcsOperatorTaskDefinitionArn)
+		cmd.Printf("Task Def:   %s\n", output.EcsOperatorTaskDefinitionArn)
 	}
 
 	// Show failure details if the stack is in a failed/rollback state
 	if isFailedStatus(output.Status) {
 		events, err := GetFailedEvents(ctx, region, stackName)
 		if err == nil && len(events) > 0 {
-			_, _ = fmt.Fprintln(os.Stdout)
-			_, _ = fmt.Fprintf(os.Stdout, "%s\n", redStyle.Render("Failed Resources:"))
+			cmd.Println()
+			cmd.Printf("%s\n", redStyle.Render("Failed Resources:"))
 			for _, e := range events {
-				_, _ = fmt.Fprintf(os.Stdout, "  - %s (%s)\n", e.LogicalResourceID, e.ResourceType)
-				_, _ = fmt.Fprintf(os.Stdout, "    %s\n", e.Reason)
+				cmd.Printf("  - %s (%s)\n", e.LogicalResourceID, e.ResourceType)
+				cmd.Printf("    %s\n", e.Reason)
 			}
 		}
 
@@ -113,10 +112,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		logGroup := DefaultLogGroup
 		logs, err := GetRecentLogs(ctx, region, logGroup, 50)
 		if err == nil && len(logs) > 0 {
-			_, _ = fmt.Fprintln(os.Stdout)
-			_, _ = fmt.Fprintf(os.Stdout, "%s\n", redStyle.Render("Recent Logs ("+logGroup+"):"))
+			cmd.Println()
+			cmd.Printf("%s\n", redStyle.Render("Recent Logs ("+logGroup+"):"))
 			for _, l := range logs {
-				_, _ = fmt.Fprintf(os.Stdout, "  %s  %s\n",
+				cmd.Printf("  %s  %s\n",
 					yellowStyle.Render(l.Timestamp.Format("15:04:05")),
 					strings.TrimSpace(l.Message),
 				)

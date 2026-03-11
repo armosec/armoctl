@@ -2,7 +2,6 @@ package operator
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -79,17 +78,17 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print installation info
-	fmt.Fprintf(os.Stderr, "Installing ARMO ECS Operator...\n")
-	fmt.Fprintf(os.Stderr, "  Cluster:    %s\n", cluster.ClusterName)
-	fmt.Fprintf(os.Stderr, "  Region:     %s\n", cluster.Region)
-	fmt.Fprintf(os.Stderr, "  Stack:      %s\n", stackName)
-	fmt.Fprintf(os.Stderr, "  Image:      %s\n", operatorImage)
+	cmd.PrintErrf("Installing ARMO ECS Operator...\n")
+	cmd.PrintErrf("  Cluster:    %s\n", cluster.ClusterName)
+	cmd.PrintErrf("  Region:     %s\n", cluster.Region)
+	cmd.PrintErrf("  Stack:      %s\n", stackName)
+	cmd.PrintErrf("  Image:      %s\n", operatorImage)
 	if cloudwatchLogs != "" {
-		fmt.Fprintf(os.Stderr, "  Log Group:  %s\n", cloudwatchLogs)
+		cmd.PrintErrf("  Log Group:  %s\n", cloudwatchLogs)
 	} else {
-		fmt.Fprintf(os.Stderr, "  Log Group:  (disabled)\n")
+		cmd.PrintErrln("  Log Group:  (disabled)")
 	}
-	fmt.Fprintln(os.Stderr)
+	cmd.PrintErrln()
 
 	// Create the stack
 	ctx := cmd.Context()
@@ -97,13 +96,13 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "Stack creation initiated. Waiting for completion...\n")
+	cmd.PrintErrln("Stack creation initiated. Waiting for completion...")
 
 	// Wait for stack creation with progress updates
 	lastStatus := ""
 	output, err := WaitForStackCreate(ctx, cluster.Region, stackName, func(status string) {
 		if status != lastStatus {
-			fmt.Fprintf(os.Stderr, "  Status: %s\n", status)
+			cmd.PrintErrf("  Status: %s\n", status)
 			lastStatus = status
 		}
 	})
@@ -112,11 +111,11 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print success message
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "ARMO ECS Operator installed successfully!\n")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "Service ARN:         %s\n", output.EcsOperatorServiceArn)
-	fmt.Fprintf(os.Stderr, "Task Definition ARN: %s\n", output.EcsOperatorTaskDefinitionArn)
+	cmd.PrintErrln()
+	cmd.PrintErrln("ARMO ECS Operator installed successfully!")
+	cmd.PrintErrln()
+	cmd.PrintErrf("Service ARN:         %s\n", output.EcsOperatorServiceArn)
+	cmd.PrintErrf("Task Definition ARN: %s\n", output.EcsOperatorTaskDefinitionArn)
 
 	return nil
 }

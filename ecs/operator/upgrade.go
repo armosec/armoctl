@@ -2,7 +2,6 @@ package operator
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -53,16 +52,16 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	clusterName := cluster.ClusterName
 	region := cluster.Region
 
-	fmt.Fprintf(os.Stderr, "Forcing new deployment for ARMO ECS Operator...\n")
-	fmt.Fprintf(os.Stderr, "  Cluster: %s\n", clusterName)
-	fmt.Fprintf(os.Stderr, "  Service: %s\n", output.EcsOperatorServiceArn)
-	fmt.Fprintln(os.Stderr)
+	cmd.PrintErrf("Forcing new deployment for ARMO ECS Operator...\n")
+	cmd.PrintErrf("  Cluster: %s\n", clusterName)
+	cmd.PrintErrf("  Service: %s\n", output.EcsOperatorServiceArn)
+	cmd.PrintErrln()
 
 	if err := ForceNewDeployment(ctx, region, clusterName, "armo-ecs-operator"); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "Upgrade initiated. The operator will pull the latest image and restart.\n")
+	cmd.PrintErrln("Upgrade initiated. The operator will pull the latest image and restart.")
 
 	return nil
 }
