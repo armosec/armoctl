@@ -25,7 +25,7 @@ func TestPrintUpdateBanner_NoUpdate(t *testing.T) {
 
 	PrintUpdateBanner(info)
 
-	w.Close()
+	_ = w.Close()
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer

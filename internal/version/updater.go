@@ -46,7 +46,7 @@ func SelfUpdate() error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmpFile) // Clean up temp file on any error
+	defer func() { _ = os.Remove(tmpFile) }() // Clean up temp file on any error
 
 	// Replace the binary
 	if err := replaceBinary(execPath, tmpFile); err != nil {
@@ -82,8 +82,8 @@ func checkWritable(path string) error {
 		return fmt.Errorf("cannot write to %s: %w\nTry moving armoctl to a user-writable location", dir, err)
 	}
 	tmpName := f.Name()
-	f.Close()
-	os.Remove(tmpName)
+	_ = f.Close()
+	_ = os.Remove(tmpName)
 	return nil
 }
 

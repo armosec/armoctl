@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 )
@@ -269,9 +268,7 @@ func TestPadding(t *testing.T) {
 func TestGetAgentImage_NoCache(t *testing.T) {
 	// Use a temp home directory with no cache
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	image := GetAgentImage()
 
@@ -284,9 +281,7 @@ func TestGetAgentImage_NoCache(t *testing.T) {
 
 func TestGetAgentImage_WithCache(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	// Save cache with specific version
 	versions := &Versions{
@@ -307,9 +302,7 @@ func TestGetAgentImage_WithCache(t *testing.T) {
 
 func TestGetOperatorImage_NoCache(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	image := GetOperatorImage("us-east-1")
 
@@ -322,9 +315,7 @@ func TestGetOperatorImage_NoCache(t *testing.T) {
 
 func TestGetOperatorImage_WithCache(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	// Save cache with specific version
 	versions := &Versions{
@@ -345,9 +336,7 @@ func TestGetOperatorImage_WithCache(t *testing.T) {
 
 func TestGetOperatorImage_DifferentRegions(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	versions := &Versions{Operator: "v1.0.0"}
 	_ = SaveCache(versions)

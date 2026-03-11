@@ -11,9 +11,7 @@ import (
 func TestCacheRoundTrip(t *testing.T) {
 	// Create a temporary directory for the test
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	versions := &Versions{
 		Armoctl:     "v1.0.0",
@@ -52,9 +50,7 @@ func TestCacheRoundTrip(t *testing.T) {
 
 func TestLoadCache_NonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	// Should return nil when cache doesn't exist
 	cached := LoadCache()
@@ -65,9 +61,7 @@ func TestLoadCache_NonExistent(t *testing.T) {
 
 func TestLoadCache_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	// Create cache directory and invalid file
 	cacheDir := filepath.Join(tmpDir, ".armoctl", "cache")
@@ -145,9 +139,7 @@ func TestCachePath(t *testing.T) {
 
 func TestEnsureCacheDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	err := EnsureCacheDir()
 	if err != nil {
@@ -167,9 +159,7 @@ func TestEnsureCacheDir(t *testing.T) {
 
 func TestSaveCache_CreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	versions := &Versions{Armoctl: "v1.0.0"}
 
@@ -188,9 +178,7 @@ func TestSaveCache_CreatesDirectory(t *testing.T) {
 
 func TestCacheFileFormat(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
 
 	versions := &Versions{
 		Armoctl:     "v1.0.0",

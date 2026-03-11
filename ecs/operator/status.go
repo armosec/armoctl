@@ -79,33 +79,33 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print status
-	fmt.Fprintf(os.Stdout, "Stack:      %s\n", output.StackName)
-	fmt.Fprintf(os.Stdout, "Status:     %s\n", colorStatus(output.Status))
+	_, _ = fmt.Fprintf(os.Stdout, "Stack:      %s\n", output.StackName)
+	_, _ = fmt.Fprintf(os.Stdout, "Status:     %s\n", colorStatus(output.Status))
 	if output.StatusReason != "" {
-		fmt.Fprintf(os.Stdout, "Reason:     %s\n", output.StatusReason)
+		_, _ = fmt.Fprintf(os.Stdout, "Reason:     %s\n", output.StatusReason)
 	}
-	fmt.Fprintf(os.Stdout, "Created:    %s\n", output.CreationTime.Format("2006-01-02 15:04:05 MST"))
+	_, _ = fmt.Fprintf(os.Stdout, "Created:    %s\n", output.CreationTime.Format("2006-01-02 15:04:05 MST"))
 	if output.LastUpdatedTime != nil {
-		fmt.Fprintf(os.Stdout, "Updated:    %s\n", output.LastUpdatedTime.Format("2006-01-02 15:04:05 MST"))
+		_, _ = fmt.Fprintf(os.Stdout, "Updated:    %s\n", output.LastUpdatedTime.Format("2006-01-02 15:04:05 MST"))
 	}
-	fmt.Fprintln(os.Stdout)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	if output.EcsOperatorServiceArn != "" {
-		fmt.Fprintf(os.Stdout, "Service:    %s\n", output.EcsOperatorServiceArn)
+		_, _ = fmt.Fprintf(os.Stdout, "Service:    %s\n", output.EcsOperatorServiceArn)
 	}
 	if output.EcsOperatorTaskDefinitionArn != "" {
-		fmt.Fprintf(os.Stdout, "Task Def:   %s\n", output.EcsOperatorTaskDefinitionArn)
+		_, _ = fmt.Fprintf(os.Stdout, "Task Def:   %s\n", output.EcsOperatorTaskDefinitionArn)
 	}
 
 	// Show failure details if the stack is in a failed/rollback state
 	if isFailedStatus(output.Status) {
 		events, err := GetFailedEvents(ctx, region, stackName)
 		if err == nil && len(events) > 0 {
-			fmt.Fprintln(os.Stdout)
-			fmt.Fprintf(os.Stdout, "%s\n", redStyle.Render("Failed Resources:"))
+			_, _ = fmt.Fprintln(os.Stdout)
+			_, _ = fmt.Fprintf(os.Stdout, "%s\n", redStyle.Render("Failed Resources:"))
 			for _, e := range events {
-				fmt.Fprintf(os.Stdout, "  - %s (%s)\n", e.LogicalResourceID, e.ResourceType)
-				fmt.Fprintf(os.Stdout, "    %s\n", e.Reason)
+				_, _ = fmt.Fprintf(os.Stdout, "  - %s (%s)\n", e.LogicalResourceID, e.ResourceType)
+				_, _ = fmt.Fprintf(os.Stdout, "    %s\n", e.Reason)
 			}
 		}
 
@@ -113,10 +113,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		logGroup := DefaultLogGroup
 		logs, err := GetRecentLogs(ctx, region, logGroup, 50)
 		if err == nil && len(logs) > 0 {
-			fmt.Fprintln(os.Stdout)
-			fmt.Fprintf(os.Stdout, "%s\n", redStyle.Render("Recent Logs ("+logGroup+"):"))
+			_, _ = fmt.Fprintln(os.Stdout)
+			_, _ = fmt.Fprintf(os.Stdout, "%s\n", redStyle.Render("Recent Logs ("+logGroup+"):"))
 			for _, l := range logs {
-				fmt.Fprintf(os.Stdout, "  %s  %s\n",
+				_, _ = fmt.Fprintf(os.Stdout, "  %s  %s\n",
 					yellowStyle.Render(l.Timestamp.Format("15:04:05")),
 					strings.TrimSpace(l.Message),
 				)

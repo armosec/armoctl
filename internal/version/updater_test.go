@@ -47,7 +47,7 @@ func TestDownloadToTempWithContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("downloadToTempWithContext() error = %v", err)
 	}
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	// Verify file exists
 	info, err := os.Stat(tmpPath)
