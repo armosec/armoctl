@@ -15,7 +15,7 @@ func TestCacheRoundTrip(t *testing.T) {
 
 	versions := &Versions{
 		Armoctl:     "v1.0.0",
-		Operator:    "v2.0.0",
+		ECSOperator: "v2.0.0",
 		PtraceAgent: "v3.0.0",
 	}
 
@@ -35,8 +35,8 @@ func TestCacheRoundTrip(t *testing.T) {
 	if cached.Versions.Armoctl != versions.Armoctl {
 		t.Errorf("Armoctl = %v, want %v", cached.Versions.Armoctl, versions.Armoctl)
 	}
-	if cached.Versions.Operator != versions.Operator {
-		t.Errorf("Operator = %v, want %v", cached.Versions.Operator, versions.Operator)
+	if cached.Versions.ECSOperator != versions.ECSOperator {
+		t.Errorf("ECSOperator = %v, want %v", cached.Versions.ECSOperator, versions.ECSOperator)
 	}
 	if cached.Versions.PtraceAgent != versions.PtraceAgent {
 		t.Errorf("PtraceAgent = %v, want %v", cached.Versions.PtraceAgent, versions.PtraceAgent)
@@ -182,7 +182,7 @@ func TestCacheFileFormat(t *testing.T) {
 
 	versions := &Versions{
 		Armoctl:     "v1.0.0",
-		Operator:    "v2.0.0",
+		ECSOperator: "v2.0.0",
 		PtraceAgent: "v3.0.0",
 	}
 

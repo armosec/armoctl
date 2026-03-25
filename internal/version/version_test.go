@@ -112,14 +112,14 @@ func TestFetchLatestFromURL(t *testing.T) {
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
 				_ = json.NewEncoder(w).Encode(Versions{
 					Armoctl:     "v1.0.0",
-					Operator:    "v2.0.0",
+					ECSOperator:    "v2.0.0",
 					PtraceAgent: "v3.0.0",
 				})
 			},
 			wantErr: false,
 			wantVersions: &Versions{
 				Armoctl:     "v1.0.0",
-				Operator:    "v2.0.0",
+				ECSOperator:    "v2.0.0",
 				PtraceAgent: "v3.0.0",
 			},
 		},
@@ -176,8 +176,8 @@ func TestFetchLatestFromURL(t *testing.T) {
 			if versions.Armoctl != tt.wantVersions.Armoctl {
 				t.Errorf("Armoctl = %v, want %v", versions.Armoctl, tt.wantVersions.Armoctl)
 			}
-			if versions.Operator != tt.wantVersions.Operator {
-				t.Errorf("Operator = %v, want %v", versions.Operator, tt.wantVersions.Operator)
+			if versions.ECSOperator != tt.wantVersions.ECSOperator {
+				t.Errorf("ECSOperator = %v, want %v", versions.ECSOperator, tt.wantVersions.ECSOperator)
 			}
 			if versions.PtraceAgent != tt.wantVersions.PtraceAgent {
 				t.Errorf("PtraceAgent = %v, want %v", versions.PtraceAgent, tt.wantVersions.PtraceAgent)
@@ -286,7 +286,7 @@ func TestGetAgentImage_WithCache(t *testing.T) {
 	// Save cache with specific version
 	versions := &Versions{
 		Armoctl:     "v1.0.0",
-		Operator:    "v2.0.0",
+		ECSOperator: "v2.0.0",
 		PtraceAgent: "v3.0.0",
 	}
 	_ = SaveCache(versions)
@@ -320,7 +320,7 @@ func TestGetOperatorImage_WithCache(t *testing.T) {
 	// Save cache with specific version
 	versions := &Versions{
 		Armoctl:     "v1.0.0",
-		Operator:    "v2.0.0",
+		ECSOperator: "v2.0.0",
 		PtraceAgent: "v3.0.0",
 	}
 	_ = SaveCache(versions)
@@ -328,7 +328,7 @@ func TestGetOperatorImage_WithCache(t *testing.T) {
 	image := GetOperatorImage("eu-west-1")
 
 	// Should use cached version with correct region
-	expected := "015253967648.dkr.ecr.eu-west-1.amazonaws.com/ecs-operator:v2.0.0"
+	expected := "015253967648.dkr.ecr.eu-west-1.amazonaws.com/ecs-operator:v2.0.0" // ECSOperator version
 	if image != expected {
 		t.Errorf("GetOperatorImage() = %v, want %v", image, expected)
 	}
@@ -338,7 +338,7 @@ func TestGetOperatorImage_DifferentRegions(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	versions := &Versions{Operator: "v1.0.0"}
+	versions := &Versions{ECSOperator: "v1.0.0"}
 	_ = SaveCache(versions)
 
 	regions := []string{"us-east-1", "us-west-2", "eu-north-1", "ap-southeast-1"}

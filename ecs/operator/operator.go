@@ -6,8 +6,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
+	"github.com/armosec/armoctl/internal/config"
 	"github.com/armosec/armoctl/internal/version"
 )
 
@@ -75,18 +75,7 @@ func defaultOperatorImage(region string) string {
 	return version.GetOperatorImage(region)
 }
 
-// requireAuth returns an error if credentials are missing.
+// requireAuth checks credentials, prompting interactively if missing.
 func requireAuth() error {
-	if viper.GetString("customer-guid") == "" || viper.GetString("access-key") == "" {
-		return fmt.Errorf(`authentication required. To get your credentials:
-  1. Log in to https://%s
-  2. Go to Settings > Access Keys
-  3. Copy your Customer GUID and Access Key
-
-Then either:
-  - Pass as flags: armoctl --customer-guid <GUID> --access-key <KEY> ...
-  - Set env vars: ARMO_CUSTOMER_GUID and ARMO_ACCESS_KEY
-  - Save to config: ~/.armoctl/config.yaml`, viper.GetString("api-url"))
-	}
-	return nil
+	return config.RequireAuth()
 }

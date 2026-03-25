@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 
 	ecscmd "github.com/armosec/armoctl/ecs"
+	"github.com/armosec/armoctl/internal/config"
 	versionpkg "github.com/armosec/armoctl/internal/version"
 )
 
@@ -23,10 +24,20 @@ var rootCmd = &cobra.Command{
 	PersistentPostRun: showUpdateBanner,
 }
 
+var configureCmd = &cobra.Command{
+	Use:   "configure",
+	Short: "Configure ARMO credentials",
+	Long:  "Interactively set your Customer GUID and Access Key. Credentials are saved to ~/.armoctl/config.yaml.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return config.PromptAllCredentials()
+	},
+}
+
 func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(ecscmd.EcsCmd)
+	rootCmd.AddCommand(configureCmd)
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
 	rootCmd.PersistentFlags().Bool("skip-update-check", false, "Skip checking for updates")
