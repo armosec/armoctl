@@ -40,14 +40,11 @@ func init() {
 	rootCmd.AddCommand(configureCmd)
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
+	rootCmd.PersistentFlags().MarkHidden("debug")
 	rootCmd.PersistentFlags().Bool("skip-update-check", false, "Skip checking for updates")
-	rootCmd.PersistentFlags().String("api-url", "cloud.armosec.io", "ARMO platform URL")
-	rootCmd.PersistentFlags().String("customer-guid", "", "Customer GUID")
-	rootCmd.PersistentFlags().String("access-key", "", "API access key")
+	rootCmd.PersistentFlags().MarkHidden("skip-update-check")
 
-	_ = viper.BindPFlag("api-url", rootCmd.PersistentFlags().Lookup("api-url"))
-	_ = viper.BindPFlag("customer-guid", rootCmd.PersistentFlags().Lookup("customer-guid"))
-	_ = viper.BindPFlag("access-key", rootCmd.PersistentFlags().Lookup("access-key"))
+	viper.SetDefault("api-url", "cloud.armosec.io")
 
 	_ = viper.BindEnv("api-url", "ARMO_API_URL")
 	_ = viper.BindEnv("customer-guid", "ARMO_CUSTOMER_GUID")
