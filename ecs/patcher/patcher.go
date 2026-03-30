@@ -41,11 +41,35 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 	td.PidMode = ecstypes.PidModeTask
 
 	// 5. Create sidecar-ptrace container.
+	// Inherit log configuration from the first target container so sidecar
+	// logs are shipped to the same log group. For awslogs, override the
+	// stream prefix so sidecar streams are distinguishable from app streams.
+	var logConfig *ecstypes.LogConfiguration
+	for i := range td.ContainerDefinitions {
+		if targets[aws.ToString(td.ContainerDefinitions[i].Name)] {
+			src := td.ContainerDefinitions[i].LogConfiguration
+			if src != nil {
+				copied := *src
+				if src.LogDriver == ecstypes.LogDriverAwslogs {
+					opts := make(map[string]string, len(src.Options))
+					for k, v := range src.Options {
+						opts[k] = v
+					}
+					opts["awslogs-stream-prefix"] = sidecarName
+					copied.Options = opts
+				}
+				logConfig = &copied
+			}
+			break
+		}
+	}
+
 	sc := ecstypes.ContainerDefinition{
-		Name:      aws.String(sidecarName),
-		Image:     aws.String(sidecar.Image),
-		Essential: aws.Bool(true),
-		Command:   []string{"--shim"},
+		Name:             aws.String(sidecarName),
+		Image:            aws.String(sidecar.Image),
+		Essential:        aws.Bool(true),
+		Command:          []string{"--shim"},
+		LogConfiguration: logConfig,
 		Environment: []ecstypes.KeyValuePair{
 			{Name: aws.String("KS_LOGGER_LEVEL"), Value: aws.String("info")},
 			{Name: aws.String("HEALTH_REPORT_INTERVAL"), Value: aws.String("5s")},

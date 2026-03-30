@@ -131,6 +131,59 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 	}
 }
 
+func TestPatchSidecarInheritsLogConfiguration(t *testing.T) {
+	logCfg := &ecstypes.LogConfiguration{
+		LogDriver: ecstypes.LogDriverAwslogs,
+		Options: map[string]string{
+			"awslogs-group":  "/ecs/test",
+			"awslogs-region": "us-east-1",
+		},
+	}
+	td := &TaskDefinition{
+		Family: aws.String("test-task"),
+		ContainerDefinitions: []ecstypes.ContainerDefinition{
+			{
+				Name:             aws.String("app"),
+				Image:            aws.String("nginx:latest"),
+				Essential:        aws.Bool(true),
+				LogConfiguration: logCfg,
+			},
+		},
+	}
+
+	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+		t.Fatalf("Patch() error: %v", err)
+	}
+
+	var sc *ecstypes.ContainerDefinition
+	for i := range td.ContainerDefinitions {
+		if aws.ToString(td.ContainerDefinitions[i].Name) == sidecarName {
+			sc = &td.ContainerDefinitions[i]
+			break
+		}
+	}
+	if sc == nil {
+		t.Fatal("sidecar-ptrace not found")
+	}
+	if sc.LogConfiguration == nil {
+		t.Fatal("sidecar-ptrace missing LogConfiguration")
+	}
+	if sc.LogConfiguration.LogDriver != ecstypes.LogDriverAwslogs {
+		t.Errorf("expected logDriver %q, got %q", ecstypes.LogDriverAwslogs, sc.LogConfiguration.LogDriver)
+	}
+	if sc.LogConfiguration.Options["awslogs-group"] != "/ecs/test" {
+		t.Errorf("expected awslogs-group %q, got %q", "/ecs/test", sc.LogConfiguration.Options["awslogs-group"])
+	}
+	if sc.LogConfiguration.Options["awslogs-stream-prefix"] != sidecarName {
+		t.Errorf("expected awslogs-stream-prefix %q, got %q", sidecarName, sc.LogConfiguration.Options["awslogs-stream-prefix"])
+	}
+	// Verify original container's log config is not mutated.
+	app := td.ContainerDefinitions[0]
+	if app.LogConfiguration.Options["awslogs-stream-prefix"] != "" {
+		t.Errorf("original container LogConfiguration was mutated")
+	}
+}
+
 func TestPatchSelectiveContainers(t *testing.T) {
 	td := &TaskDefinition{
 		Family: aws.String("multi-container-task"),
