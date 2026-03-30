@@ -40,9 +40,9 @@ func init() {
 	rootCmd.AddCommand(configureCmd)
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
-	rootCmd.PersistentFlags().MarkHidden("debug")
+	_ = rootCmd.PersistentFlags().MarkHidden("debug")
 	rootCmd.PersistentFlags().Bool("skip-update-check", false, "Skip checking for updates")
-	rootCmd.PersistentFlags().MarkHidden("skip-update-check")
+	_ = rootCmd.PersistentFlags().MarkHidden("skip-update-check")
 
 	viper.SetDefault("api-url", "cloud.armosec.io")
 
