@@ -8,6 +8,7 @@ import (
 
 	"github.com/armosec/armoctl/ecs/operator"
 	"github.com/armosec/armoctl/ecs/patcher"
+	"github.com/armosec/armoctl/internal/config"
 	"github.com/armosec/armoctl/internal/version"
 )
 
@@ -64,19 +65,7 @@ func patchAndPrint(cmd *cobra.Command, td *patcher.TaskDefinition, opts patcher.
 	return nil
 }
 
-// requireAuth returns an error if credentials are missing. Use this to gate
-// operations that call the AWS ECS API (--register).
+// requireAuth checks credentials, prompting interactively if missing.
 func requireAuth() error {
-	if viper.GetString("customer-guid") == "" || viper.GetString("access-key") == "" {
-		return fmt.Errorf(`Authentication required. To get your credentials:
-  1. Log in to https://%s
-  2. Go to Settings > Access Keys
-  3. Copy your Customer GUID and Access Key
-
-Then either:
-  - Pass as flags: armoctl --customer-guid <GUID> --access-key <KEY> ...
-  - Set env vars: ARMO_CUSTOMER_GUID and ARMO_ACCESS_KEY
-  - Save to config: ~/.armoctl/config.yaml`, viper.GetString("api-url"))
-	}
-	return nil
+	return config.RequireAuth()
 }

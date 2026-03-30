@@ -8,20 +8,21 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/spf13/viper"
 	"golang.org/x/mod/semver"
 )
 
 const (
-	// DistributionURL is the CloudFront URL for armoctl distribution.
+	// DistributionURL is the CloudFront URL for armoctl binary distribution.
 	DistributionURL = "https://package-distribution.armosec.io/armoctl"
 
-	// VersionEndpoint is the path to the version.json file.
-	VersionEndpoint = "/version.json"
+	// SensorsVersionPath is the API path for fetching sensor versions.
+	SensorsVersionPath = "/api/v1/sensors/version"
 
 	// FetchTimeout is the timeout for fetching version info.
 	FetchTimeout = 5 * time.Second
 
-	// MaxResponseSize is the maximum size of the version.json response (1MB).
+	// MaxResponseSize is the maximum size of the response (1MB).
 	MaxResponseSize = 1024 * 1024
 
 	// DefaultAgentImageRepo is the ECR repository for the ptrace agent image.
@@ -38,19 +39,27 @@ const (
 
 // Versions holds the latest versions of all components.
 type Versions struct {
+	HostAgent   string `json:"hostAgent"`
+	NodeAgent   string `json:"nodeAgent"`
+	ECSAgent    string `json:"ecsAgent"`
+	ECSOperator string `json:"ecsOperator"`
 	Armoctl     string `json:"armoctl"`
-	Operator    string `json:"operator"`
-	PtraceAgent string `json:"ptrace-agent"`
+	PtraceAgent string `json:"ptraceAgent"`
 }
 
-// FetchLatest fetches the latest version information from CloudFront.
+// FetchLatest fetches the latest version information from the backend API.
 func FetchLatest() (*Versions, error) {
 	return FetchLatestWithContext(context.Background())
 }
 
 // FetchLatestWithContext fetches the latest version information with context support.
 func FetchLatestWithContext(ctx context.Context) (*Versions, error) {
-	return FetchLatestFromURL(ctx, DistributionURL+VersionEndpoint)
+	apiURL := viper.GetString("api-url")
+	if apiURL == "" {
+		apiURL = "cloud.armosec.io"
+	}
+	url := fmt.Sprintf("https://%s%s", apiURL, SensorsVersionPath)
+	return FetchLatestFromURL(ctx, url)
 }
 
 // FetchLatestFromURL fetches version information from a specific URL.
@@ -61,6 +70,16 @@ func FetchLatestFromURL(ctx context.Context, url string) (*Versions, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	// Add authentication headers
+	if accessKey := viper.GetString("access-key"); accessKey != "" {
+		req.Header.Set("x-api-key", accessKey)
+	}
+	if customerGUID := viper.GetString("customer-guid"); customerGUID != "" {
+		q := req.URL.Query()
+		q.Set("customerGUID", customerGUID)
+		req.URL.RawQuery = q.Encode()
 	}
 
 	resp, err := client.Do(req)
@@ -116,15 +135,12 @@ func CheckForUpdates(currentVersion string, latest *Versions) *UpdateInfo {
 	}
 
 	// Use proper semver comparison
-	// semver.Compare returns -1 if v < w, 0 if v == w, +1 if v > w
-	// We want to show update if current < latest
 	if semver.IsValid(currentVersion) && semver.IsValid(latest.Armoctl) {
 		if semver.Compare(currentVersion, latest.Armoctl) < 0 {
 			info.HasUpdate = true
 		}
 	} else {
 		// Fallback to string comparison if versions are not valid semver
-		// This handles cases like pre-release versions
 		if currentVersion != latest.Armoctl {
 			info.HasUpdate = true
 		}
@@ -152,8 +168,8 @@ func GetOperatorImage(region string) string {
 	tag := FallbackTag
 
 	cached := LoadCache()
-	if cached != nil && cached.Versions.Operator != "" {
-		tag = cached.Versions.Operator
+	if cached != nil && cached.Versions.ECSOperator != "" {
+		tag = cached.Versions.ECSOperator
 	}
 
 	return fmt.Sprintf(DefaultOperatorImageRepo, region, tag)
