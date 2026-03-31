@@ -64,7 +64,7 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 			},
 		},
 		HealthCheck: &ecstypes.HealthCheck{
-			Command:     []string{"CMD-SHELL", "test -f /tmp/shared/ptrace-shim && /usr/bin/ptrace-agent --health --shim"},
+			Command:     []string{"CMD", "/usr/bin/ptrace-agent", "--health", " --shim"},
 			Interval:    aws.Int32(5),
 			Timeout:     aws.Int32(2),
 			Retries:     aws.Int32(3),

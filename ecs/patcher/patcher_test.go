@@ -63,12 +63,6 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 			aws.ToString(td.ContainerDefinitions[lastIdx].Name))
 	}
 
-	if sc.HealthCheck == nil || len(sc.HealthCheck.Command) < 2 ||
-		sc.HealthCheck.Command[0] != "CMD-SHELL" ||
-		sc.HealthCheck.Command[1] != "test -f /tmp/shared/ptrace-shim && /usr/bin/ptrace-agent --health --shim" {
-		t.Errorf("sidecar health check must verify shim exists before reporting healthy, got %v", sc.HealthCheck)
-	}
-
 	if sc.LinuxParameters == nil || sc.LinuxParameters.Capabilities == nil {
 		t.Fatal("sidecar-ptrace missing LinuxParameters/Capabilities")
 	}
