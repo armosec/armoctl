@@ -149,6 +149,11 @@ func SaveConfig() error {
 	} else {
 		delete(existing, "api-url")
 	}
+	if v := viper.GetString("api-base-url"); v != "" && v != "api.armosec.io" {
+		existing["api-base-url"] = v
+	} else {
+		delete(existing, "api-base-url")
+	}
 
 	out, err := yaml.Marshal(existing)
 	if err != nil {
@@ -156,6 +161,16 @@ func SaveConfig() error {
 	}
 
 	return os.WriteFile(configPath, out, 0o600)
+}
+
+// ApplyDefaults installs viper defaults the rest of armoctl assumes.
+// Safe to call multiple times.
+//
+// IMPORTANT: api-url is intentionally kept at cloud.armosec.io for ECS and
+// version-check compatibility. The new agent-bridge clusters use api-base-url.
+func ApplyDefaults() {
+	viper.SetDefault("api-url", "cloud.armosec.io")
+	viper.SetDefault("api-base-url", "api.armosec.io")
 }
 
 func required(label string) func(string) error {

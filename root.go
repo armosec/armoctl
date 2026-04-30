@@ -44,9 +44,10 @@ func init() {
 	rootCmd.PersistentFlags().Bool("skip-update-check", false, "Skip checking for updates")
 	_ = rootCmd.PersistentFlags().MarkHidden("skip-update-check")
 
-	viper.SetDefault("api-url", "cloud.armosec.io")
+	config.ApplyDefaults()
 
 	_ = viper.BindEnv("api-url", "ARMO_API_URL")
+	_ = viper.BindEnv("api-base-url", "ARMO_API_BASE_URL")
 	_ = viper.BindEnv("customer-guid", "ARMO_CUSTOMER_GUID")
 	_ = viper.BindEnv("access-key", "ARMO_ACCESS_KEY")
 }
