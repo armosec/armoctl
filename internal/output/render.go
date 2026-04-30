@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
 	"sort"
 	"strings"
 
@@ -181,6 +180,5 @@ func toFlatMap(item any) map[string]any {
 			out[k] = v
 		}
 	}
-	_ = reflect.TypeOf
 	return out
 }
