@@ -31,7 +31,7 @@ func TestResolve_DryRunDoesNotCallServer(t *testing.T) {
 
 	var stdout bytes.Buffer
 	root.SetOut(&stdout)
-	root.SetArgs([]string{"resolve", "i1", "--reason", "fp", "--dry-run"})
+	root.SetArgs([]string{"resolve", "i1", "--dry-run"})
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -45,6 +45,18 @@ func TestResolve_DryRunDoesNotCallServer(t *testing.T) {
 	if got["dryRun"] != true {
 		t.Fatalf("dryRun: %v", got)
 	}
+	req, _ := got["request"].(map[string]any)
+	if req == nil || req["url"] != "/runtime/incidents/changeStatus" {
+		t.Fatalf("preview url: %v", got)
+	}
+	body, _ := req["body"].(map[string]any)
+	guids, _ := body["incidentsGuids"].([]any)
+	if len(guids) != 1 || guids[0] != "i1" {
+		t.Fatalf("preview body incidentsGuids: %v", body)
+	}
+	if body["status"] != "Resolved" {
+		t.Fatalf("preview body status: %v", body)
+	}
 }
 
 func TestResolve_YesPostsAndReportsChanged(t *testing.T) {
@@ -52,8 +64,17 @@ func TestResolve_YesPostsAndReportsChanged(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("method: %s", r.Method)
 		}
-		if !strings.Contains(r.URL.Path, "/runtime/incidents/i1/resolve") {
+		if r.URL.Path != "/api/v1/runtime/incidents/changeStatus" {
 			t.Errorf("path: %s", r.URL.Path)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["status"] != "Resolved" {
+			t.Errorf("body.status: %v", body["status"])
+		}
+		guids, _ := body["incidentsGuids"].([]any)
+		if len(guids) != 1 || guids[0] != "i1" {
+			t.Errorf("body.incidentsGuids: %v", body["incidentsGuids"])
 		}
 		w.Header().Set("x-request-id", "req-z")
 		w.WriteHeader(200)
@@ -70,7 +91,7 @@ func TestResolve_YesPostsAndReportsChanged(t *testing.T) {
 
 	var stdout bytes.Buffer
 	root.SetOut(&stdout)
-	root.SetArgs([]string{"resolve", "i1", "--reason", "fp", "--yes"})
+	root.SetArgs([]string{"resolve", "i1", "--yes"})
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}

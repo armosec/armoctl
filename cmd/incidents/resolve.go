@@ -12,14 +12,19 @@ import (
 func ResolveCmd(clientFor ClientFor) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "resolve [guid]",
-		Short: "Resolve a runtime incident",
+		Short: "Resolve a runtime incident (sets status to Resolved)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return &clierr.Error{Code: clierr.CodeBadInput, Msg: "resolve requires a GUID"}
 			}
-			reason, _ := cmd.Flags().GetString("reason")
-			body := map[string]any{"reason": reason}
-			path := "/runtime/incidents/" + args[0] + "/resolve"
+			falsePositive, _ := cmd.Flags().GetBool("false-positive")
+			body := map[string]any{
+				"status":                "Resolved",
+				"incidentsGuids":        []string{args[0]},
+				"innerFilters":          []any{},
+				"markedAsFalsePositive": falsePositive,
+			}
+			const path = "/runtime/incidents/changeStatus"
 
 			cli := clientFor(cmd)
 			m := cliflags.ReadMutation(cmd)
@@ -44,7 +49,6 @@ func ResolveCmd(clientFor ClientFor) *cobra.Command {
 			})
 		},
 	}
-	c.Flags().String("reason", "", "Free-text reason recorded with the resolution")
-	_ = c.MarkFlagRequired("reason")
+	c.Flags().Bool("false-positive", false, "Mark the incident as a false positive when resolving")
 	return c
 }

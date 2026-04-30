@@ -3,7 +3,7 @@ package incidents
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +16,10 @@ import (
 
 func TestExplain_PrintsExplanation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"explanation": "process spawned shell"})
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintln(w, `data: {"choices":[{"delta":{"content":"process spawned shell"}}]}`)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "data: [DONE]")
 	}))
 	defer srv.Close()
 	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})

@@ -33,7 +33,7 @@ func TestE2E_TriageFlow(t *testing.T) {
 			"total":    map[string]any{"value": 1},
 		})
 	})
-	mux.HandleFunc("/api/v1/runtime/incidents/i1/resolve", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/runtime/incidents/changeStatus", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
@@ -68,7 +68,7 @@ func TestE2E_TriageFlow(t *testing.T) {
 		root := build()
 		var out bytes.Buffer
 		root.SetOut(&out)
-		root.SetArgs([]string{"incidents", "resolve", "i1", "--reason", "fp", "--dry-run"})
+		root.SetArgs([]string{"incidents", "resolve", "i1", "--dry-run"})
 		if err := root.ExecuteContext(context.Background()); err != nil {
 			t.Fatalf("dry-run: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestE2E_TriageFlow(t *testing.T) {
 		root := build()
 		var out bytes.Buffer
 		root.SetOut(&out)
-		root.SetArgs([]string{"incidents", "resolve", "i1", "--reason", "fp", "--yes"})
+		root.SetArgs([]string{"incidents", "resolve", "i1", "--yes"})
 		if err := root.ExecuteContext(context.Background()); err != nil {
 			t.Fatalf("yes: %v", err)
 		}
