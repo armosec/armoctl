@@ -8,7 +8,9 @@
 
 **Tech Stack:** Go 1.26, cobra/viper, charm/fang+huh, gojq, gopkg.in/yaml.v3, encoding/csv, olekukonko/tablewriter, net/http (+ httptest in tests).
 
-**Spec:** `shared-designs-and-docs/armoctl-agent-bridge/2026-04-30-design.md` (commits `a8bd81d`, `f8128e4`).
+**Spec:** `shared-designs-and-docs/armoctl-agent-bridge/2026-04-30-design.md` (commits `a8bd81d`, `f8128e4`, `0432430`).
+
+**Hard constraint — do not touch existing armoctl functionality.** The `ecs/` package and the version-check code stay unchanged. The new clusters use a **separate** config key `api-base-url` (env `ARMO_API_BASE_URL`, default `api.armosec.io`); the existing `api-url` is left as-is. Task 1 enforces this and Task 26 verifies via a regression test that ECS still resolves the same URL it did before.
 
 ---
 
@@ -57,14 +59,16 @@ Modified:
 
 ---
 
-## Task 1: Set default API URL to `api.armosec.io` and add Whoami stub
+## Task 1: Add `api-base-url` defaults (leaves existing `api-url` untouched)
 
 **Files:**
 - Modify: `internal/config/config.go`
 - Modify: `root.go`
 - Test: `internal/config/config_test.go` (create)
 
-- [ ] **Step 1: Write the failing test**
+**Constraint reminder:** Do not change the existing `api-url` default. ECS and version-check code depend on it staying `cloud.armosec.io`.
+
+- [ ] **Step 1: Write the failing tests**
 
 `internal/config/config_test.go`:
 ```go
@@ -76,18 +80,27 @@ import (
 	"github.com/spf13/viper"
 )
 
-func TestDefaultAPIURL(t *testing.T) {
+func TestDefaults_NewKey(t *testing.T) {
 	viper.Reset()
 	ApplyDefaults()
-	if got := viper.GetString("api-url"); got != "api.armosec.io" {
-		t.Fatalf("api-url default = %q, want %q", got, "api.armosec.io")
+	if got := viper.GetString("api-base-url"); got != "api.armosec.io" {
+		t.Fatalf("api-base-url default = %q, want api.armosec.io", got)
+	}
+}
+
+func TestDefaults_LeavesExistingAPIURLAlone(t *testing.T) {
+	// ECS / version-check still expects cloud.armosec.io as the dashboard default.
+	viper.Reset()
+	ApplyDefaults()
+	if got := viper.GetString("api-url"); got != "cloud.armosec.io" {
+		t.Fatalf("api-url default = %q, want cloud.armosec.io (ECS regression)", got)
 	}
 }
 ```
 
-- [ ] **Step 2: Run test — expect FAIL**
+- [ ] **Step 2: Run tests — expect FAIL**
 
-Run: `go test ./internal/config/... -run TestDefaultAPIURL -v`
+Run: `go test ./internal/config/... -run TestDefaults -v`
 Expected: FAIL — `ApplyDefaults` undefined.
 
 - [ ] **Step 3: Implement minimal change**
@@ -96,29 +109,40 @@ Add to `internal/config/config.go`:
 ```go
 // ApplyDefaults installs viper defaults the rest of armoctl assumes.
 // Safe to call multiple times.
+//
+// IMPORTANT: api-url is intentionally kept at cloud.armosec.io for ECS and
+// version-check compatibility. The new agent-bridge clusters use api-base-url.
 func ApplyDefaults() {
-	viper.SetDefault("api-url", "api.armosec.io")
+	viper.SetDefault("api-url", "cloud.armosec.io")
+	viper.SetDefault("api-base-url", "api.armosec.io")
 }
 ```
 
-Also change in `SaveConfig`:
+In `SaveConfig`, add persistence for `api-base-url` (mirroring the existing `api-url` block, but compared against `api.armosec.io`):
 ```go
-if v := viper.GetString("api-url"); v != "" && v != "api.armosec.io" {
+if v := viper.GetString("api-base-url"); v != "" && v != "api.armosec.io" {
+	existing["api-base-url"] = v
+} else {
+	delete(existing, "api-base-url")
+}
 ```
-(was `cloud.armosec.io`).
+Leave the existing `api-url` block (with `cloud.armosec.io` sentinel) **unchanged**.
 
-In `root.go`, replace `viper.SetDefault("api-url", "cloud.armosec.io")` with `config.ApplyDefaults()`.
+In `root.go`, replace `viper.SetDefault("api-url", "cloud.armosec.io")` with `config.ApplyDefaults()` and add:
+```go
+_ = viper.BindEnv("api-base-url", "ARMO_API_BASE_URL")
+```
 
-- [ ] **Step 4: Run test — expect PASS**
+- [ ] **Step 4: Run tests — expect PASS**
 
-Run: `go test ./internal/config/... -run TestDefaultAPIURL -v`
-Expected: PASS.
+Run: `go test ./internal/config/... -v`
+Expected: PASS (both tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add internal/config/config.go internal/config/config_test.go root.go
-git commit -m "config: default api-url to api.armosec.io and add ApplyDefaults"
+git commit -m "config: add api-base-url default; preserve existing api-url for ECS"
 ```
 
 ---
@@ -2788,11 +2812,11 @@ func Cmd(clientFor ClientFor) *cobra.Command {
 }
 
 // DefaultClientFor reads viper config and builds an apiclient.
-// It's exported so root.go can pass it without coupling cobra to apiclient.
+// It uses api-base-url (NOT api-url, which is reserved for ECS/version-check).
 func DefaultClientFor(read func(key string) string) ClientFor {
 	return func(cmd *cobra.Command) *apiclient.Client {
 		return apiclient.New(apiclient.Config{
-			BaseURL:      "https://" + read("api-url"),
+			BaseURL:      "https://" + read("api-base-url"),
 			AccessKey:    read("access-key"),
 			CustomerGUID: read("customer-guid"),
 		})
@@ -3702,10 +3726,11 @@ Expected: FAIL — `Whoami` undefined.
 Append to `internal/config/config.go`:
 ```go
 // Whoami pings a lightweight read endpoint to validate that
-// (apiURL, customerGUID, accessKey) form a working triple.
-func Whoami(ctx context.Context, apiURL, customerGUID, accessKey string) error {
+// (apiBaseURL, customerGUID, accessKey) form a working triple.
+// Note: uses api-base-url (the API host), not api-url (the dashboard host).
+func Whoami(ctx context.Context, apiBaseURL, customerGUID, accessKey string) error {
 	c := apiclient.New(apiclient.Config{
-		BaseURL:      apiURL,
+		BaseURL:      apiBaseURL,
 		AccessKey:    accessKey,
 		CustomerGUID: customerGUID,
 	})
@@ -3716,9 +3741,10 @@ func Whoami(ctx context.Context, apiURL, customerGUID, accessKey string) error {
 
 Add imports `"context"` and `"github.com/armosec/armoctl/internal/apiclient"`.
 
-In `PromptAllCredentials`, after `SaveConfig`, add:
+Modify `PromptAllCredentials` to also prompt for `api-base-url` (next to `api-url`), and after `SaveConfig` add:
 ```go
-if err := Whoami(context.Background(), apiURL, guid, key); err != nil {
+apiBase := viper.GetString("api-base-url")
+if err := Whoami(context.Background(), apiBase, guid, key); err != nil {
 	fmt.Fprintf(os.Stderr, "Warning: credentials saved but whoami ping failed: %v\n", err)
 }
 ```
@@ -3734,6 +3760,182 @@ Expected: PASS.
 git add internal/config
 git commit -m "config: Whoami ping in configure flow"
 ```
+
+---
+
+## Task 26: ECS regression test (do-not-touch guarantee)
+
+**Files:**
+- Create: `ecs/operator/install_apiurl_test.go`
+
+- [ ] **Step 1: Write the test**
+
+```go
+package operator
+
+import (
+	"testing"
+
+	"github.com/armosec/armoctl/internal/config"
+	"github.com/spf13/viper"
+)
+
+// TestECS_APIUrlDefaultUnchanged guards against accidentally changing the
+// existing api-url default; ECS install code reads viper.GetString("api-url").
+func TestECS_APIUrlDefaultUnchanged(t *testing.T) {
+	viper.Reset()
+	config.ApplyDefaults()
+	if got := viper.GetString("api-url"); got != "cloud.armosec.io" {
+		t.Fatalf("api-url default = %q, want cloud.armosec.io — ECS regression", got)
+	}
+}
+```
+
+- [ ] **Step 2: Run test — expect PASS (Task 1 already enforces this)**
+
+Run: `go test ./ecs/operator/... -run TestECS_APIUrlDefaultUnchanged -v`
+Expected: PASS.
+
+- [ ] **Step 3: Run all tests + build to confirm zero ECS regression**
+
+Run: `go test ./... && go build ./...`
+Expected: PASS + clean build.
+
+- [ ] **Step 4: Skip — no implementation needed**
+
+This task is a regression-guard test only.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add ecs/operator/install_apiurl_test.go
+git commit -m "ecs: regression-guard test for api-url default"
+```
+
+---
+
+## Task 27: Live smoke test against the real ARMO API
+
+**Pre-req:** the user provides a Customer GUID + Access Key for a sandbox/staging tenant. Pass them via env vars; do NOT commit them.
+
+**Files:** none (manual run + scripted log)
+
+- [ ] **Step 1: Configure credentials**
+
+```bash
+export ARMO_CUSTOMER_GUID="<provided>"
+export ARMO_ACCESS_KEY="<provided>"
+# Optional: override host if user wants staging
+# export ARMO_API_BASE_URL="api.staging.armosec.io"
+```
+
+- [ ] **Step 2: Read-only smoke battery**
+
+Run each and capture output. Each must exit 0 and produce a list/object envelope.
+
+```bash
+./armoctl incidents list --limit 5
+./armoctl incidents severities --full
+./armoctl schema --list
+./armoctl schema incidents | head -30
+./armoctl incidents fields
+./armoctl incidents list --query '.items | length'
+./armoctl incidents list --output yaml --limit 2
+./armoctl incidents list --output ndjson --limit 2
+```
+
+If any fail, file a bug task in the plan and stop the smoke run.
+
+- [ ] **Step 3: Mutation dry-run smoke (no real changes)**
+
+Pick the GUID of a low-severity incident from Step 2 (or an incident the user identifies as safe to touch).
+
+```bash
+GUID="<from-step-2>"
+./armoctl incidents resolve "$GUID" --reason "armoctl smoke" --dry-run
+```
+
+Expected: stdout `{"dryRun": true, ...}`, no audit log entry, server not contacted (verify by checking the audit log path is unchanged).
+
+- [ ] **Step 4: Mutation real-run smoke (only if user explicitly authorizes a target incident)**
+
+Skip unless the user names a target GUID and confirms it is safe to resolve+unresolve.
+
+```bash
+./armoctl incidents resolve "$GUID" --reason "armoctl smoke" --yes
+./armoctl incidents unresolve "$GUID" --yes
+tail -2 ~/.armoctl/audit.log   # verify two audit entries
+```
+
+Expected: both commands print `"changed": true`; audit log shows two lines.
+
+- [ ] **Step 5: Record the smoke results**
+
+Append a short note to the PR description (drafted in Task 28) listing which commands were run and their outcomes. Do not paste raw responses (may contain tenant data).
+
+---
+
+## Task 28: Open the PR
+
+**Pre-req:** All previous tasks done, all tests green, smoke results recorded.
+
+- [ ] **Step 1: Confirm clean state**
+
+```bash
+go test ./...
+go build ./...
+git status -s  # should be clean
+git log --oneline origin/main..HEAD
+```
+
+Expected: tests pass, build clean, working tree clean, branch ahead of `origin/main`.
+
+- [ ] **Step 2: Push the feature branch**
+
+```bash
+BRANCH="feature/agent-bridge-foundation-incidents"
+git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+git push -u origin "$BRANCH"
+```
+
+- [ ] **Step 3: Open the PR**
+
+```bash
+gh pr create --title "feat: agent-bridge foundation + incidents cluster" --body "$(cat <<'EOF'
+## Summary
+- Adds shared scaffolding for the agent-bridge feature (apiclient, output renderers, safety wrap, schema embed, error/exit codes, shared cobra flags).
+- Adds the `incidents` resource cluster (list/get/alerts/explain/resolve/unresolve/severities/fields) end-to-end against the new contract.
+- Adds `armoctl schema` for JSON schema introspection and per-resource `fields` cheatsheets.
+- Extends `armoctl configure` with a `whoami` validation ping.
+
+## Out of scope
+- Other resource clusters (vulns, posture, risks, …) — follow-up plans.
+- SKILL.md and Claude Code plugin packaging — follow-up plan.
+
+## ECS / version-check guarantee
+The existing `api-url` default (`cloud.armosec.io`) is **unchanged**. The new clusters use a separate `api-base-url` (default `api.armosec.io`). ECS regression test in `ecs/operator/install_apiurl_test.go`.
+
+## Design
+See `shared-designs-and-docs/armoctl-agent-bridge/2026-04-30-design.md`.
+
+## Test plan
+- [x] Unit tests across all new packages (TDD per the plan)
+- [x] End-to-end test in `cmd/incidents/incidents_e2e_test.go` (httptest)
+- [x] ECS regression guard test
+- [x] Live read smoke battery against a sandbox tenant
+- [ ] Live mutation smoke (resolve/unresolve a designated incident) — only if reviewer authorizes
+
+EOF
+)"
+```
+
+- [ ] **Step 4: Capture the PR URL and report it back**
+
+```bash
+gh pr view --json url -q .url
+```
+
+- [ ] **Step 5: No commit needed — the PR is the artifact.**
 
 ---
 
@@ -3756,8 +3958,10 @@ git commit -m "config: Whoami ping in configure flow"
 | §13 Schema introspection + `<resource> fields` cheatsheet | Tasks 12–13, 15 |
 | §14 SKILL.md | Out of scope (separate plan) |
 | §15 Plugin packaging | Out of scope (separate plan) |
-| §16 Testing | Tasks 2–25 are TDD; Task 24 is e2e |
-| §17 Implementation order | Tasks 2–14 = scaffolding; 15–24 = reference cluster; 25 = polish |
+| §16 Testing | Tasks 2–25 are TDD; Task 24 is httptest e2e; Task 27 is live smoke |
+| §17 Implementation order | Tasks 2–14 = scaffolding; 15–24 = reference cluster; 25 = polish; 26 = regression guard; 27 = live smoke; 28 = PR |
+| ECS untouched constraint | Tasks 1, 26 |
+| PR creation | Task 28 |
 
 **Placeholder scan** — none. All code blocks are concrete.
 
