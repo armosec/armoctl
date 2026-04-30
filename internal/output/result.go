@@ -35,9 +35,10 @@ func (Mutation) isResult() {}
 
 // Options controls rendering.
 type Options struct {
-	Format string    // json | yaml | ndjson | table | csv
-	Query  string    // gojq expression
-	Fields []string
-	Full   bool
-	Stderr io.Writer // used by ndjson for envelope metadata
+	Format        string
+	Query         string
+	Fields        []string
+	Full          bool
+	SummaryFields []string
+	Stderr        io.Writer
 }

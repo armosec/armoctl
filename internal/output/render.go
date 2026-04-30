@@ -12,6 +12,7 @@ import (
 )
 
 func Render(w io.Writer, r Result, o Options) error {
+	r = applyProjection(r, o)
 	if o.Query != "" {
 		v, err := applyQuery(unwrap(r), o.Query)
 		if err != nil {
@@ -32,6 +33,23 @@ func Render(w io.Writer, r Result, o Options) error {
 		return renderTable(w, r)
 	default:
 		return fmt.Errorf("unsupported output format %q", o.Format)
+	}
+}
+
+func applyProjection(r Result, o Options) Result {
+	paths := effectiveFields(o)
+	if paths == nil {
+		return r
+	}
+	switch v := r.(type) {
+	case List:
+		v.Items = projectItems(v.Items, paths)
+		return v
+	case Get:
+		v.Object = project(v.Object, paths)
+		return v
+	default:
+		return r
 	}
 }
 
