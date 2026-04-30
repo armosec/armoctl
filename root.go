@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/viper"
 
 	ecscmd "github.com/armosec/armoctl/ecs"
+	"github.com/armosec/armoctl/cmd/cliflags"
+	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
 	"github.com/armosec/armoctl/internal/config"
+	schemacmd "github.com/armosec/armoctl/internal/schema"
 	versionpkg "github.com/armosec/armoctl/internal/version"
 )
 
@@ -38,6 +41,10 @@ func init() {
 
 	rootCmd.AddCommand(ecscmd.EcsCmd)
 	rootCmd.AddCommand(configureCmd)
+
+	cliflags.Register(rootCmd)
+	rootCmd.AddCommand(incidentscmd.Cmd(incidentscmd.DefaultClientFor(viper.GetString)))
+	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
 	_ = rootCmd.PersistentFlags().MarkHidden("debug")
