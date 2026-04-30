@@ -23,8 +23,9 @@ type Config struct {
 }
 
 type Client struct {
-	cfg Config
-	hc  *http.Client
+	cfg   Config
+	hc    *http.Client
+	retry retryConfig
 }
 
 func New(cfg Config) *Client {
@@ -32,7 +33,7 @@ func New(cfg Config) *Client {
 	if hc == nil {
 		hc = &http.Client{Timeout: 30 * time.Second}
 	}
-	return &Client{cfg: cfg, hc: hc}
+	return &Client{cfg: cfg, hc: hc, retry: defaultRetry}
 }
 
 // Do issues a request to path (path may be absolute or relative to BaseURL).
@@ -64,7 +65,7 @@ func (c *Client) Do(ctx context.Context, method, path string, query url.Values, 
 		req.Header.Set("content-type", "application/json")
 	}
 	req.Header.Set("accept", "application/json")
-	return c.hc.Do(req)
+	return c.doWithRetry(req)
 }
 
 func (c *Client) resolveURL(path string, query url.Values) (*url.URL, error) {
@@ -149,4 +150,33 @@ func mapHTTPError(status int, reqID string, body []byte) error {
 		code = clierr.CodeBadInput
 	}
 	return &clierr.Error{Code: code, Msg: m, RequestID: reqID}
+}
+
+func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
+	var lastErr error
+	for attempt := 0; attempt < c.retry.Max; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			case <-time.After(c.retry.sleepFor(attempt - 1)):
+			}
+		}
+		resp, err := c.hc.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			resp.Body.Close()
+			lastErr = nil
+			continue
+		}
+		return resp, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	// Last attempt's response was a 429/5xx — re-issue once and return whatever we get.
+	return c.hc.Do(req)
 }
