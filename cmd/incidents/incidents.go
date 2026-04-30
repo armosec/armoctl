@@ -9,6 +9,7 @@ func Cmd(clientFor ClientFor) *cobra.Command {
 	c := &cobra.Command{Use: "incidents", Short: "Inspect and manage runtime incidents"}
 	c.AddCommand(FieldsCmd())
 	c.AddCommand(ListCmd(clientFor))
+	c.AddCommand(GetCmd(clientFor))
 	return c
 }
 
