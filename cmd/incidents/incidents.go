@@ -13,6 +13,8 @@ func Cmd(clientFor ClientFor) *cobra.Command {
 	c.AddCommand(AlertsCmd(clientFor))
 	c.AddCommand(ExplainCmd(clientFor))
 	c.AddCommand(ResolveCmd(clientFor))
+	c.AddCommand(UnresolveCmd(clientFor))
+	c.AddCommand(SeveritiesCmd(clientFor))
 	return c
 }
 
