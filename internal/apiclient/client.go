@@ -89,3 +89,64 @@ func (c *Client) resolveURL(path string, query url.Values) (*url.URL, error) {
 	u.RawQuery = q.Encode()
 	return u, nil
 }
+
+// GetJSON does a GET and decodes JSON into out.
+func (c *Client) GetJSON(ctx context.Context, path string, query url.Values, out any) error {
+	resp, err := c.Do(ctx, http.MethodGet, path, query, nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return decode(resp, out)
+}
+
+// PostJSON does a POST with JSON body and decodes JSON into out (out may be nil).
+func (c *Client) PostJSON(ctx context.Context, path string, query url.Values, body, out any) error {
+	resp, err := c.Do(ctx, http.MethodPost, path, query, body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return decode(resp, out)
+}
+
+func decode(resp *http.Response, out any) error {
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return mapHTTPError(resp.StatusCode, resp.Header.Get("x-request-id"), body)
+	}
+	if out == nil || len(body) == 0 {
+		return nil
+	}
+	return json.Unmarshal(body, out)
+}
+
+func mapHTTPError(status int, reqID string, body []byte) error {
+	var msg struct {
+		Message string `json:"message"`
+		Error   string `json:"error"`
+	}
+	_ = json.Unmarshal(body, &msg)
+	m := msg.Message
+	if m == "" {
+		m = msg.Error
+	}
+	if m == "" {
+		m = strings.TrimSpace(string(body))
+	}
+	if m == "" {
+		m = http.StatusText(status)
+	}
+	code := clierr.CodeServer
+	switch {
+	case status == 401, status == 403:
+		code = clierr.CodeAuth
+	case status == 404:
+		code = clierr.CodeNotFound
+	case status == 409:
+		code = clierr.CodeConflict
+	case status >= 400 && status < 500:
+		code = clierr.CodeBadInput
+	}
+	return &clierr.Error{Code: code, Msg: m, RequestID: reqID}
+}
