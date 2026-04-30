@@ -12,6 +12,13 @@ import (
 )
 
 func Render(w io.Writer, r Result, o Options) error {
+	if o.Query != "" {
+		v, err := applyQuery(unwrap(r), o.Query)
+		if err != nil {
+			return err
+		}
+		return writeRaw(w, v, o)
+	}
 	switch o.Format {
 	case "", "json":
 		return renderJSON(w, r)
@@ -25,6 +32,27 @@ func Render(w io.Writer, r Result, o Options) error {
 		return renderTable(w, r)
 	default:
 		return fmt.Errorf("unsupported output format %q", o.Format)
+	}
+}
+
+func unwrap(r Result) any {
+	if g, ok := r.(Get); ok {
+		return g.Object
+	}
+	return r
+}
+
+func writeRaw(w io.Writer, v any, o Options) error {
+	switch o.Format {
+	case "yaml":
+		enc := yaml.NewEncoder(w)
+		enc.SetIndent(2)
+		defer enc.Close()
+		return enc.Encode(v)
+	default:
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(v)
 	}
 }
 
