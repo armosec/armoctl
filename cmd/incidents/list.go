@@ -1,8 +1,6 @@
 package incidents
 
 import (
-	"net/url"
-
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/apiclient"
 	"github.com/armosec/armoctl/internal/output"
@@ -21,12 +19,13 @@ func ListCmd(clientFor ClientFor) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli := clientFor(cmd)
 			pg := cliflags.ReadPage(cmd)
-			q := url.Values{}
+			body := map[string]any{}
 			if sev, _ := cmd.Flags().GetString("severity"); sev != "" {
-				q.Set("severity", sev)
+				body["severity"] = sev
 			}
-			res, err := cli.ListPaged(cmd.Context(), "/runtime/incidents", q, apiclient.ListOpts{
+			res, err := cli.ListPaged(cmd.Context(), "/runtime/incidents", nil, apiclient.ListOpts{
 				Limit: pg.Limit, Page: pg.Page, PageSize: pg.PageSize,
+				Method: "POST", Body: body,
 			})
 			if err != nil {
 				return err

@@ -1,8 +1,6 @@
 package incidents
 
 import (
-	"net/url"
-
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/apiclient"
 	"github.com/armosec/armoctl/internal/clierr"
@@ -21,8 +19,9 @@ func AlertsCmd(clientFor ClientFor) *cobra.Command {
 			cli := clientFor(cmd)
 			pg := cliflags.ReadPage(cmd)
 			path := "/runtime/incidents/" + args[0] + "/alerts/list"
-			res, err := cli.ListPaged(cmd.Context(), path, url.Values{}, apiclient.ListOpts{
+			res, err := cli.ListPaged(cmd.Context(), path, nil, apiclient.ListOpts{
 				Limit: pg.Limit, Page: pg.Page, PageSize: pg.PageSize,
+				Method: "POST", Body: map[string]any{},
 			})
 			if err != nil {
 				return err

@@ -15,6 +15,9 @@ import (
 
 func TestSeverities_ReturnsAggregate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
 		_, _ = w.Write([]byte(`{"critical":3,"high":7,"medium":1,"low":0}`))
 	}))
 	defer srv.Close()

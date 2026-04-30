@@ -13,7 +13,7 @@ func SeveritiesCmd(clientFor ClientFor) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli := clientFor(cmd)
 			var obj map[string]any
-			if err := cli.GetJSON(cmd.Context(), "/runtime/incidentsPerSeverity", nil, &obj); err != nil {
+			if err := cli.PostJSON(cmd.Context(), "/runtime/incidentsPerSeverity", nil, map[string]any{}, &obj); err != nil {
 				return err
 			}
 			return output.Render(cmd.OutOrStdout(), output.Get{Object: obj}, cliflags.OutputOptions(cmd, nil))

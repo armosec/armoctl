@@ -14,17 +14,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestE2E_TriageFlow exercises list → get → resolve --dry-run → resolve --yes.
+// TestE2E_TriageFlow exercises list → resolve --dry-run → resolve --yes.
 func TestE2E_TriageFlow(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/runtime/incidents", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("incidents list: expected POST, got %s", r.Method)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+		if _, ok := body["pageNum"]; !ok {
+			t.Errorf("body missing pageNum: %v", body)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"response": []map[string]any{{"guid": "i1", "name": "X", "severity": "high", "status": "open", "noise": "n"}},
+			"response": []map[string]any{{"guid": "i1", "name": "X", "kind": "ThreatDetection", "attributes": map[string]any{"incidentStatus": "open"}, "noise": "n"}},
 			"total":    map[string]any{"value": 1},
 		})
-	})
-	mux.HandleFunc("/api/v1/runtime/incidents/i1", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"guid": "i1", "name": "X"})
 	})
 	mux.HandleFunc("/api/v1/runtime/incidents/i1/resolve", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -54,19 +61,6 @@ func TestE2E_TriageFlow(t *testing.T) {
 		}
 		if !strings.Contains(out.String(), "i1") || strings.Contains(out.String(), "noise") {
 			t.Fatalf("list output: %s", out.String())
-		}
-	}
-	// get
-	{
-		root := build()
-		var out bytes.Buffer
-		root.SetOut(&out)
-		root.SetArgs([]string{"incidents", "get", "i1", "--full"})
-		if err := root.ExecuteContext(context.Background()); err != nil {
-			t.Fatalf("get: %v", err)
-		}
-		if !strings.Contains(out.String(), `"guid": "i1"`) {
-			t.Fatalf("get output: %s", out.String())
 		}
 	}
 	// resolve --dry-run

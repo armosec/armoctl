@@ -19,6 +19,19 @@ func TestAlerts_ListsAlertsForIncident(t *testing.T) {
 		if !strings.Contains(r.URL.Path, "/runtime/incidents/i1/alerts/list") {
 			t.Errorf("path: %s", r.URL.Path)
 		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+		if _, ok := body["pageNum"]; !ok {
+			t.Errorf("body missing pageNum: %v", body)
+		}
+		if _, ok := body["pageSize"]; !ok {
+			t.Errorf("body missing pageSize: %v", body)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"response": []map[string]any{{"alertID": "a1"}},
 			"total":    map[string]any{"value": 1},

@@ -15,7 +15,7 @@ func TestFieldsCheatsheetIsNonEmpty(t *testing.T) {
 	for _, f := range cheatsheet {
 		have[f.Name] = true
 	}
-	for _, want := range []string{"guid", "name", "severity"} {
+	for _, want := range []string{"guid", "name", "kind"} {
 		if !have[want] {
 			t.Errorf("cheatsheet missing %q", want)
 		}

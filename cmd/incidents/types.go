@@ -3,8 +3,9 @@ package incidents
 
 // SummaryFields is the default projection applied to `incidents list`.
 var SummaryFields = []string{
-	"guid", "name", "severity", "status", "creationTimestamp",
-	"resource.cluster", "resource.namespace", "resource.workload",
+	"guid", "name", "attributes.incidentStatus",
+	"updatedTime", "clusterName",
+	"designators.wlid", "cloudMetadata.region", "kind",
 }
 
 // Field is one entry in the per-resource cheatsheet.
@@ -17,16 +18,15 @@ type Field struct {
 // and for the auto-generated section in SKILL.md.
 func Cheatsheet() []Field {
 	return []Field{
-		{"guid", "Stable incident ID; primary key for get/resolve/explain."},
-		{"name", "Short rule/incident name (e.g. \"Suspicious binary\")."},
-		{"severity", "critical | high | medium | low."},
-		{"status", "open | resolved | investigating."},
-		{"creationTimestamp", "RFC3339 time the incident was raised."},
-		{"resource.cluster", "Cluster the workload belongs to."},
-		{"resource.namespace", "Kubernetes namespace (or N/A for ECS)."},
-		{"resource.workload", "Workload name (deployment/service/task)."},
-		{"alertCount", "Number of alerts grouped under this incident."},
-		{"resolvedBy", "User/service that resolved the incident, if any."},
-		{"resolutionReason", "Free-text reason recorded at resolve time."},
+		{"guid", "Stable incident ID; primary key for resolve/explain/alerts."},
+		{"name", "Short rule/incident name (e.g. \"Suspicious binary execution\")."},
+		{"kind", "Incident kind/category (e.g. \"ThreatDetection\")."},
+		{"attributes.incidentStatus", "Current status: open | resolved | investigating. Access with path syntax."},
+		{"updatedTime", "RFC3339 timestamp of the last status change."},
+		{"timestamp", "RFC3339 time the incident was first raised."},
+		{"clusterName", "Kubernetes cluster that reported the incident."},
+		{"designators.wlid", "Workload ID (ARMO wlid format). Access with path syntax."},
+		{"cloudMetadata.region", "Cloud region where the workload runs. Access with path syntax."},
+		{"signature", "Unique fingerprint identifying the rule that fired."},
 	}
 }
