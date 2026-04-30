@@ -1,12 +1,14 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"charm.land/huh/v2"
+	"github.com/armosec/armoctl/internal/apiclient"
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/term"
@@ -111,6 +113,11 @@ func PromptAllCredentials() error {
 		return fmt.Errorf("saving config: %w", err)
 	}
 
+	apiBase := viper.GetString("api-base-url")
+	if err := Whoami(context.Background(), apiBase, guid, key); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: credentials saved but whoami ping failed: %v\n", err)
+	}
+
 	fmt.Fprintln(os.Stderr, "Configuration saved to ~/.armoctl/config.yaml")
 	return nil
 }
@@ -180,4 +187,17 @@ func required(label string) func(string) error {
 		}
 		return nil
 	}
+}
+
+// Whoami pings a lightweight read endpoint to validate that
+// (apiBaseURL, customerGUID, accessKey) form a working triple.
+// Note: uses api-base-url (the API host), not api-url (the dashboard host).
+func Whoami(ctx context.Context, apiBaseURL, customerGUID, accessKey string) error {
+	c := apiclient.New(apiclient.Config{
+		BaseURL:      apiBaseURL,
+		AccessKey:    accessKey,
+		CustomerGUID: customerGUID,
+	})
+	var ignore map[string]any
+	return c.GetJSON(ctx, "/customerState/onboarding", nil, &ignore)
 }
