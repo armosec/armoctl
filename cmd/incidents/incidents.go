@@ -11,6 +11,7 @@ func Cmd(clientFor ClientFor) *cobra.Command {
 	c.AddCommand(ListCmd(clientFor))
 	c.AddCommand(GetCmd(clientFor))
 	c.AddCommand(AlertsCmd(clientFor))
+	c.AddCommand(ExplainCmd(clientFor))
 	return c
 }
 
