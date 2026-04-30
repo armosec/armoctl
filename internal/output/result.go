@@ -1,6 +1,8 @@
 // Package output renders armoctl results in the formats agents and humans need.
 package output
 
+import "io"
+
 // Result is the marker interface for the three result shapes.
 type Result interface{ isResult() }
 
@@ -33,8 +35,9 @@ func (Mutation) isResult() {}
 
 // Options controls rendering.
 type Options struct {
-	Format string // json | yaml | ndjson | table | csv
-	Query  string // gojq expression
+	Format string    // json | yaml | ndjson | table | csv
+	Query  string    // gojq expression
 	Fields []string
 	Full   bool
+	Stderr io.Writer // used by ndjson for envelope metadata
 }
