@@ -29,14 +29,14 @@ for entry in "${RESOURCES[@]}"; do
   name="${entry%%:*}"
   defn="${entry##*:}"
   out="$OUT_DIR/$name.json"
-  jq --arg d "$defn" '.definitions[$d] // (.components.schemas[$d] // null)' "$SWAGGER_PATH" \
-    | jq '. + {"$schema":"https://json-schema.org/draft/2020-12/schema"}' \
-    > "$out.tmp"
-  if ! jq -e 'type=="object"' "$out.tmp" >/dev/null; then
+  extracted=$(jq --arg d "$defn" '.definitions[$d] // (.components.schemas[$d] // null)' "$SWAGGER_PATH")
+  if [[ "$extracted" == "null" ]]; then
     echo "definition $defn not found in swagger" >&2
-    rm -f "$out.tmp"
     exit 3
   fi
+  echo "$extracted" \
+    | jq '. + {"$schema":"https://json-schema.org/draft/2020-12/schema"}' \
+    > "$out.tmp"
   mv "$out.tmp" "$out"
   echo "wrote $out"
 done
