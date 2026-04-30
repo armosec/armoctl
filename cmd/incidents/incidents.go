@@ -10,6 +10,7 @@ func Cmd(clientFor ClientFor) *cobra.Command {
 	c.AddCommand(FieldsCmd())
 	c.AddCommand(ListCmd(clientFor))
 	c.AddCommand(GetCmd(clientFor))
+	c.AddCommand(AlertsCmd(clientFor))
 	return c
 }
 
