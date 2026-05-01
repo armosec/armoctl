@@ -123,16 +123,33 @@ func TestResources_PostsList(t *testing.T) {
 }
 
 func TestFailedControls_PostsList(t *testing.T) {
-	srv := makeServer(t, "/repositoryPosture/failedControls", http.MethodPost, map[string]any{
-		"response": []map[string]any{{"id": "C-0001", "name": "cert-rotation", "severity": "high", "framework": "security"}},
-		"total":    map[string]any{"value": 1},
-	})
+	// The live endpoint requires reportGUID and kind as top-level body fields,
+	// and returns a bare JSON array (not a paged envelope).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method: got %s, want POST", r.Method)
+		}
+		if !strings.HasSuffix(r.URL.Path, "/repositoryPosture/failedControls") {
+			t.Errorf("path: got %s, want suffix /repositoryPosture/failedControls", r.URL.Path)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["reportGUID"] != "report-xyz" {
+			t.Errorf("reportGUID: got %v, want report-xyz", body["reportGUID"])
+		}
+		if body["kind"] != "repo" {
+			t.Errorf("kind: got %v, want repo", body["kind"])
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "C-0001", "name": "cert-rotation", "severity": "high", "framework": "security"},
+		})
+	}))
 	defer srv.Close()
 
 	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
 	root, stdout := newRoot(nil)
 	root.AddCommand(FailedControlsCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
-	root.SetArgs([]string{"failed-controls"})
+	root.SetArgs([]string{"failed-controls", "--report-guid", "report-xyz"})
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}

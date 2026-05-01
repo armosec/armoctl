@@ -23,6 +23,7 @@ func newRoot(clientFor func(*cobra.Command) *apiclient.Client) (*cobra.Command, 
 }
 
 func TestList_PostsList(t *testing.T) {
+	// The live endpoint returns { "response": { "attackChains": [...] }, "total": {...} }
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method: got %s, want %s", r.Method, http.MethodPost)
@@ -36,8 +37,10 @@ func TestList_PostsList(t *testing.T) {
 			t.Errorf("body missing pageNum/pageSize: %v", body)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"response": []map[string]any{{"name": "chain-1", "guid": "guid-123", "severity": "critical"}},
-			"total":    map[string]any{"value": 1},
+			"response": map[string]any{
+				"attackChains": []map[string]any{{"name": "chain-1", "guid": "guid-123", "severity": "critical"}},
+			},
+			"total": map[string]any{"value": 1},
 		})
 	}))
 	defer srv.Close()

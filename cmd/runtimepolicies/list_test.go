@@ -15,12 +15,13 @@ import (
 )
 
 func TestList_PostsToRuntimePolicies(t *testing.T) {
+	// The list endpoint is /runtime/policies/list and requires rulesettype in innerFilters.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
-		if r.URL.Path != "/api/v1/runtime/policies" {
-			t.Errorf("expected /api/v1/runtime/policies, got %s", r.URL.Path)
+		if r.URL.Path != "/api/v1/runtime/policies/list" {
+			t.Errorf("expected /api/v1/runtime/policies/list, got %s", r.URL.Path)
 		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -31,6 +32,15 @@ func TestList_PostsToRuntimePolicies(t *testing.T) {
 		}
 		if _, ok := body["pageSize"]; !ok {
 			t.Errorf("body missing pageSize: %v", body)
+		}
+		fl, _ := body["innerFilters"].([]any)
+		if len(fl) == 0 {
+			t.Errorf("innerFilters missing: %v", body)
+		} else {
+			f := fl[0].(map[string]any)
+			if f["rulesettype"] != "Managed" {
+				t.Errorf("rulesettype: got %v, want Managed", f["rulesettype"])
+			}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"response": []map[string]any{
@@ -51,7 +61,7 @@ func TestList_PostsToRuntimePolicies(t *testing.T) {
 	var stdout bytes.Buffer
 	root.SetOut(&stdout)
 	root.SetErr(&stdout)
-	root.SetArgs([]string{"runtime-policies", "list"})
+	root.SetArgs([]string{"runtime-policies", "list", "--rulesettype", "Managed"})
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
