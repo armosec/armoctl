@@ -9,3 +9,7 @@ armoctl:
 	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(ARCH) go build \
 		-ldflags "-X main.Version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)" \
 		-o armoctl .
+
+.PHONY: schemas
+schemas:
+	./scripts/gen-schemas.sh

@@ -19,13 +19,13 @@ func PrintUpdateBanner(info *UpdateInfo) {
 		return
 	}
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "┌────────────────────────────────────────────────────────┐")
-	fmt.Fprintf(os.Stderr, "│  Update available: %s -> %s%s│\n",
+	_, _ = fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintln(os.Stderr, "┌────────────────────────────────────────────────────────┐")
+	_, _ = fmt.Fprintf(os.Stderr, "│  Update available: %s -> %s%s│\n",
 		info.ArmoCtlCurrent, info.ArmoCtlLatest, padding(info.ArmoCtlCurrent, info.ArmoCtlLatest))
-	fmt.Fprintln(os.Stderr, "│                                                        │")
-	fmt.Fprintln(os.Stderr, "│  Run: armoctl update                                   │")
-	fmt.Fprintln(os.Stderr, "└────────────────────────────────────────────────────────┘")
+	_, _ = fmt.Fprintln(os.Stderr, "│                                                        │")
+	_, _ = fmt.Fprintln(os.Stderr, "│  Run: armoctl update                                   │")
+	_, _ = fmt.Fprintln(os.Stderr, "└────────────────────────────────────────────────────────┘")
 }
 
 // padding calculates spaces needed to align the box border.

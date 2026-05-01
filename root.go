@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/viper"
 
 	ecscmd "github.com/armosec/armoctl/ecs"
+	"github.com/armosec/armoctl/cmd/cliflags"
+	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
 	"github.com/armosec/armoctl/internal/config"
+	schemacmd "github.com/armosec/armoctl/internal/schema"
 	versionpkg "github.com/armosec/armoctl/internal/version"
 )
 
@@ -39,14 +42,19 @@ func init() {
 	rootCmd.AddCommand(ecscmd.EcsCmd)
 	rootCmd.AddCommand(configureCmd)
 
+	cliflags.Register(rootCmd)
+	rootCmd.AddCommand(incidentscmd.Cmd(incidentscmd.DefaultClientFor(viper.GetString)))
+	rootCmd.AddCommand(schemacmd.Cmd())
+
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
 	_ = rootCmd.PersistentFlags().MarkHidden("debug")
 	rootCmd.PersistentFlags().Bool("skip-update-check", false, "Skip checking for updates")
 	_ = rootCmd.PersistentFlags().MarkHidden("skip-update-check")
 
-	viper.SetDefault("api-url", "cloud.armosec.io")
+	config.ApplyDefaults()
 
 	_ = viper.BindEnv("api-url", "ARMO_API_URL")
+	_ = viper.BindEnv("api-base-url", "ARMO_API_BASE_URL")
 	_ = viper.BindEnv("customer-guid", "ARMO_CUSTOMER_GUID")
 	_ = viper.BindEnv("access-key", "ARMO_ACCESS_KEY")
 }

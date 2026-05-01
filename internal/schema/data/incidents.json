@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Incident",
+  "type": "object",
+  "properties": {
+    "guid": {"type": "string"},
+    "name": {"type": "string"},
+    "severity": {"type": "string"},
+    "status": {"type": "string"},
+    "alerts": {"type": "array", "items": {"type": "object"}}
+  }
+}
