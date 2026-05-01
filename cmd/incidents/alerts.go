@@ -1,6 +1,7 @@
 package incidents
 
 import (
+	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/apiclient"
 	"github.com/armosec/armoctl/internal/clierr"
@@ -8,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AlertsCmd(clientFor ClientFor) *cobra.Command {
+func AlertsCmd(clientFor cliclient.ClientFor) *cobra.Command {
 	return &cobra.Command{
 		Use:   "alerts [guid]",
 		Short: "List alerts grouped under one incident",

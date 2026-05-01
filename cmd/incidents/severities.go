@@ -1,12 +1,13 @@
 package incidents
 
 import (
+	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/output"
 	"github.com/spf13/cobra"
 )
 
-func SeveritiesCmd(clientFor ClientFor) *cobra.Command {
+func SeveritiesCmd(clientFor cliclient.ClientFor) *cobra.Command {
 	return &cobra.Command{
 		Use:   "severities",
 		Short: "Get aggregate incident counts per severity",

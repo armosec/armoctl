@@ -7,13 +7,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/output"
 	"github.com/spf13/cobra"
 )
 
-func ExplainCmd(clientFor ClientFor) *cobra.Command {
+func ExplainCmd(clientFor cliclient.ClientFor) *cobra.Command {
 	return &cobra.Command{
 		Use:   "explain [guid]",
 		Short: "Aggregate the platform's streaming explanation for an incident",
