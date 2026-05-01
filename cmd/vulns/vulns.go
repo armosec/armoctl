@@ -15,5 +15,9 @@ func Cmd(clientFor cliclient.ClientFor) *cobra.Command {
 	c.AddCommand(ComponentsCmd(clientFor))
 	c.AddCommand(CVEsCmd(clientFor))
 	c.AddCommand(HostsCmd(clientFor))
+	c.AddCommand(TopCmd(clientFor))
+	c.AddCommand(SeverityCmd(clientFor))
+	c.AddCommand(HistoryCmd(clientFor))
+	c.AddCommand(ScanCmd(clientFor))
 	return c
 }
