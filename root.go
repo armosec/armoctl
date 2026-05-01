@@ -14,6 +14,7 @@ import (
 	attackchainscmd "github.com/armosec/armoctl/cmd/attackchains"
 	cloudaccountscmd "github.com/armosec/armoctl/cmd/cloudaccounts"
 	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
+	integrationscmd "github.com/armosec/armoctl/cmd/integrations"
 	inventorycmd "github.com/armosec/armoctl/cmd/inventory"
 	networkpoliciescmd "github.com/armosec/armoctl/cmd/networkpolicies"
 	posturecmd "github.com/armosec/armoctl/cmd/posture"
@@ -65,6 +66,7 @@ func init() {
 	rootCmd.AddCommand(cloudaccountscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(runtimerulescmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(runtimepoliciescmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(integrationscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
