@@ -97,7 +97,7 @@ func (c *Client) GetJSON(ctx context.Context, path string, query url.Values, out
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return decode(resp, out)
 }
 
@@ -107,7 +107,7 @@ func (c *Client) PostJSON(ctx context.Context, path string, query url.Values, bo
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return decode(resp, out)
 }
 
