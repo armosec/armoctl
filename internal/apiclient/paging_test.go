@@ -3,7 +3,6 @@ package apiclient
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -49,7 +48,6 @@ func TestListPaged_AutoPagesUntilLimit(t *testing.T) {
 	if got.Items[0].(map[string]any)["i"].(float64) != 0 || got.Items[4].(map[string]any)["i"].(float64) != 4 {
 		t.Fatalf("items not in order: %v", got.Items)
 	}
-	_ = fmt.Sprintf
 }
 
 func TestListPaged_POSTPutsPagingInBody(t *testing.T) {

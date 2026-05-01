@@ -2,11 +2,17 @@ package incidents
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func ResolveCmd(clientFor ClientFor) *cobra.Command {
@@ -33,18 +39,32 @@ func ResolveCmd(clientFor ClientFor) *cobra.Command {
 				Command: "incidents.resolve",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "POST", "url": path, "body": body},
 				ArgsLog: "guid=" + args[0],
 				Exec: func(ctx context.Context) (any, safety.ExecMeta, error) {
-					var resp map[string]any
-					err := cli.PostJSON(ctx, path, nil, body, &resp)
+					resp, err := cli.Do(ctx, http.MethodPost, path, nil, body)
 					if err != nil {
 						return nil, safety.ExecMeta{}, err
 					}
-					return resp, safety.ExecMeta{URL: "POST " + path, Status: 200}, nil
+					defer func() { _ = resp.Body.Close() }()
+					raw, _ := io.ReadAll(resp.Body)
+					if resp.StatusCode >= 400 {
+						return nil, safety.ExecMeta{}, &clierr.Error{
+							Code:      clierr.CodeServer,
+							Msg:       strings.TrimSpace(string(raw)),
+							RequestID: resp.Header.Get("x-request-id"),
+						}
+					}
+					var out map[string]any
+					_ = json.Unmarshal(raw, &out)
+					return out, safety.ExecMeta{
+						URL:       "POST " + path,
+						Status:    resp.StatusCode,
+						RequestID: resp.Header.Get("x-request-id"),
+					}, nil
 				},
 			})
 		},

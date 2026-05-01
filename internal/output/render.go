@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func Render(w io.Writer, r Result, o Options) error {
@@ -65,7 +65,7 @@ func writeRaw(w io.Writer, v any, o Options) error {
 	case "yaml":
 		enc := yaml.NewEncoder(w)
 		enc.SetIndent(2)
-		defer enc.Close()
+		defer func() { _ = enc.Close() }()
 		return enc.Encode(v)
 	default:
 		enc := json.NewEncoder(w)
@@ -86,7 +86,7 @@ func renderJSON(w io.Writer, r Result) error {
 func renderYAML(w io.Writer, r Result) error {
 	enc := yaml.NewEncoder(w)
 	enc.SetIndent(2)
-	defer enc.Close()
+	defer func() { _ = enc.Close() }()
 	if g, ok := r.(Get); ok {
 		return enc.Encode(g.Object)
 	}
@@ -105,7 +105,7 @@ func renderNDJSON(w io.Writer, r Result, o Options) error {
 		if o.Stderr != nil {
 			meta := map[string]any{"total": v.Total, "page": v.Page, "pageSize": v.PageSize, "nextCursor": v.NextCursor}
 			b, _ := json.Marshal(meta)
-			fmt.Fprintln(o.Stderr, string(b))
+			_, _ = fmt.Fprintln(o.Stderr, string(b))
 		}
 		return nil
 	default:
@@ -145,7 +145,7 @@ func renderTable(w io.Writer, r Result) error {
 		return renderJSON(w, r)
 	}
 	if len(v.Items) == 0 {
-		fmt.Fprintln(w, "(empty)")
+		_, _ = fmt.Fprintln(w, "(empty)")
 		return nil
 	}
 	cols := flatColumns(v.Items[0])
@@ -183,7 +183,7 @@ func writeRow(w io.Writer, cells []string, widths []int) {
 	for i, c := range cells {
 		parts[i] = fmt.Sprintf("%-*s", widths[i], c)
 	}
-	fmt.Fprintln(w, strings.Join(parts, "  "))
+	_, _ = fmt.Fprintln(w, strings.Join(parts, "  "))
 }
 
 func flatColumns(item any) []string {

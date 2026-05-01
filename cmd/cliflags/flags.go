@@ -16,9 +16,9 @@ func Register(root *cobra.Command) {
 	pf.String("query", "", "gojq expression applied after --fields/summary")
 	pf.StringSlice("fields", nil, "Comma-separated dotted paths to keep")
 	pf.Bool("full", false, "Disable summary projection; return raw response")
-	pf.Int("limit", 500, "Max items to fetch when auto-paging (0 = no cap, requires --yes)")
+	pf.Int("limit", 500, "Max items to fetch when auto-paging (0 = no cap)")
 	pf.Int("page", 0, "Explicit page (1-based; disables auto-paging)")
-	pf.Int("page-size", 0, "Explicit page size (disables auto-paging)")
+	pf.Int("page-size", 0, "Page size to request (does not disable auto-paging)")
 	pf.Bool("dry-run", false, "Build the request but do not send it")
 	pf.Bool("yes", false, "Skip confirmation for mutations")
 }

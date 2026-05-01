@@ -161,6 +161,14 @@ func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
 				return nil, req.Context().Err()
 			case <-time.After(c.retry.sleepFor(attempt - 1)):
 			}
+			// Refresh body for retry.
+			if req.GetBody != nil {
+				body, err := req.GetBody()
+				if err != nil {
+					return nil, err
+				}
+				req.Body = body
+			}
 		}
 		resp, err := c.hc.Do(req)
 		if err != nil {
@@ -168,8 +176,11 @@ func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
 			continue
 		}
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			lastErr = nil
+			if attempt == c.retry.Max-1 {
+				return resp, nil // return last failure rather than re-issuing
+			}
 			continue
 		}
 		return resp, nil
@@ -177,6 +188,5 @@ func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
 	if lastErr != nil {
 		return nil, lastErr
 	}
-	// Last attempt's response was a 429/5xx — re-issue once and return whatever we get.
 	return c.hc.Do(req)
 }
