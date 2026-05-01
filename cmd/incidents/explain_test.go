@@ -17,9 +17,9 @@ import (
 func TestExplain_PrintsExplanation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprintln(w, `data: {"choices":[{"delta":{"content":"process spawned shell"}}]}`)
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "data: [DONE]")
+		_, _ = fmt.Fprintln(w, `data: {"choices":[{"delta":{"content":"process spawned shell"}}]}`)
+		_, _ = fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "data: [DONE]")
 	}))
 	defer srv.Close()
 	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})

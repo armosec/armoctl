@@ -178,7 +178,7 @@ func replaceBinary(currentPath, newPath string) error {
 	// Set correct permissions
 	if err := os.Chmod(currentPath, mode); err != nil {
 		// Non-fatal, try to continue
-		fmt.Fprintf(os.Stderr, "Warning: could not set permissions: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: could not set permissions: %v\n", err)
 	}
 
 	// Remove backup (may fail on Windows, which is fine)

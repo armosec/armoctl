@@ -54,7 +54,7 @@ func Cmd() *cobra.Command {
 			list, _ := cmd.Flags().GetBool("list")
 			if list {
 				for _, n := range List() {
-					fmt.Fprintln(cmd.OutOrStdout(), n)
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), n)
 				}
 				return nil
 			}
@@ -65,7 +65,7 @@ func Cmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			return nil
 		},
 	}

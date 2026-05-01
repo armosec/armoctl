@@ -36,7 +36,7 @@ func AuditAppend(e Entry) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	line := fmt.Sprintf("%s %s args=%q url=%s status=%d requestId=%s\n",
 		time.Now().UTC().Format(time.RFC3339), e.Command, e.Args, e.URL, e.Status, e.RequestID)
 	_, err = f.WriteString(line)

@@ -27,7 +27,7 @@ func ExplainCmd(clientFor ClientFor) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode >= 400 {
 				b, _ := io.ReadAll(resp.Body)
 				return &clierr.Error{Code: codeForStatus(resp.StatusCode), Msg: strings.TrimSpace(string(b))}

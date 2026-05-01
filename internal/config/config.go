@@ -37,8 +37,8 @@ Then either:
   - Save to config: ~/.armoctl/config.yaml`, viper.GetString("api-url"))
 	}
 
-	fmt.Fprintf(os.Stderr, "Credentials not found. Let's set them up.\n")
-	fmt.Fprintf(os.Stderr, "You can find your credentials at https://%s → Settings → Access Keys\n\n", viper.GetString("api-url"))
+	_, _ = fmt.Fprintf(os.Stderr, "Credentials not found. Let's set them up.\n")
+	_, _ = fmt.Fprintf(os.Stderr, "You can find your credentials at https://%s → Settings → Access Keys\n\n", viper.GetString("api-url"))
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -61,12 +61,12 @@ Then either:
 	viper.Set("access-key", key)
 
 	if err := SaveConfig(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not save config: %v\n", err)
-		fmt.Fprintln(os.Stderr, "Credentials will be used for this session only.")
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: could not save config: %v\n", err)
+		_, _ = fmt.Fprintln(os.Stderr, "Credentials will be used for this session only.")
 	} else {
-		fmt.Fprintln(os.Stderr, "Credentials saved to ~/.armoctl/config.yaml")
+		_, _ = fmt.Fprintln(os.Stderr, "Credentials saved to ~/.armoctl/config.yaml")
 	}
-	fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintln(os.Stderr)
 
 	return nil
 }
@@ -82,7 +82,7 @@ func PromptAllCredentials() error {
 	key := viper.GetString("access-key")
 	apiURL := viper.GetString("api-url")
 
-	fmt.Fprintf(os.Stderr, "You can find your credentials at https://%s → Settings → Access Keys\n\n", apiURL)
+	_, _ = fmt.Fprintf(os.Stderr, "You can find your credentials at https://%s → Settings → Access Keys\n\n", apiURL)
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -115,10 +115,10 @@ func PromptAllCredentials() error {
 
 	apiBase := viper.GetString("api-base-url")
 	if err := Whoami(context.Background(), apiBase, guid, key); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: credentials saved but whoami ping failed: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: credentials saved but whoami ping failed: %v\n", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "Configuration saved to ~/.armoctl/config.yaml")
+	_, _ = fmt.Fprintln(os.Stderr, "Configuration saved to ~/.armoctl/config.yaml")
 	return nil
 }
 

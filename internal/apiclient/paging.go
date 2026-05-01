@@ -103,7 +103,7 @@ func (c *Client) fetchPage(ctx context.Context, path string, query url.Values, m
 		if err != nil {
 			return rawListResponse{}, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		var raw rawListResponse
 		if err := decode(resp, &raw); err != nil {
 			return rawListResponse{}, err
@@ -118,7 +118,7 @@ func (c *Client) fetchPage(ctx context.Context, path string, query url.Values, m
 	if err != nil {
 		return rawListResponse{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var raw rawListResponse
 	if err := decode(resp, &raw); err != nil {
 		return rawListResponse{}, err

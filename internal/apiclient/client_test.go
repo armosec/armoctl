@@ -25,7 +25,7 @@ func TestDoInjectsAuthAndCustomerGUID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if gotKey != "K" {
 		t.Fatalf("x-api-key = %q, want K", gotKey)
 	}

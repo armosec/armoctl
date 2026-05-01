@@ -28,7 +28,7 @@ func TestDoRetriesOn429(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if got := atomic.LoadInt32(&hits); got != 3 {
 		t.Fatalf("hits = %d, want 3", got)
 	}
@@ -46,7 +46,7 @@ func TestDoGivesUpAfterMax(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != 503 {
 		t.Fatalf("status = %d, want 503", resp.StatusCode)
 	}
