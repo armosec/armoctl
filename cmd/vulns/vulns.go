@@ -19,5 +19,13 @@ func Cmd(clientFor cliclient.ClientFor) *cobra.Command {
 	c.AddCommand(SeverityCmd(clientFor))
 	c.AddCommand(HistoryCmd(clientFor))
 	c.AddCommand(ScanCmd(clientFor))
+
+	exc := &cobra.Command{Use: "exceptions", Short: "Vulnerability exception policies"}
+	exc.AddCommand(ExceptionsListCmd(clientFor))
+	exc.AddCommand(ExceptionsCreateCmd(clientFor))
+	exc.AddCommand(ExceptionsUpdateCmd(clientFor))
+	exc.AddCommand(ExceptionsDeleteCmd(clientFor))
+	c.AddCommand(exc)
+
 	return c
 }

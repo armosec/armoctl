@@ -30,6 +30,11 @@ var HostSummary = []string{
 	"hostName", "hostType", "accountName", "region", "kernelVersion",
 }
 
+var ExceptionSummary = []string{
+	"guid", "name", "creationTime", "actions",
+	"vulnerabilities", "reason", "expirationDate",
+}
+
 // Field is one entry in a per-resource cheatsheet.
 type Field struct {
 	Name string
