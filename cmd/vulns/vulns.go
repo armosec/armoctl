@@ -10,6 +10,10 @@ import (
 func Cmd(clientFor cliclient.ClientFor) *cobra.Command {
 	c := &cobra.Command{Use: "vulns", Short: "Inspect and manage vulnerabilities"}
 	c.AddCommand(FieldsCmd())
-	// list/aggregate/exceptions/scan subcommands added in subsequent tasks.
+	c.AddCommand(WorkloadsCmd(clientFor))
+	c.AddCommand(ImagesCmd(clientFor))
+	c.AddCommand(ComponentsCmd(clientFor))
+	c.AddCommand(CVEsCmd(clientFor))
+	c.AddCommand(HostsCmd(clientFor))
 	return c
 }
