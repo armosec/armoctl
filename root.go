@@ -11,8 +11,11 @@ import (
 	ecscmd "github.com/armosec/armoctl/ecs"
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
+	attackchainscmd "github.com/armosec/armoctl/cmd/attackchains"
 	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
+	inventorycmd "github.com/armosec/armoctl/cmd/inventory"
 	posturecmd "github.com/armosec/armoctl/cmd/posture"
+	riskscmd "github.com/armosec/armoctl/cmd/risks"
 	vulnscmd "github.com/armosec/armoctl/cmd/vulns"
 	"github.com/armosec/armoctl/internal/config"
 	schemacmd "github.com/armosec/armoctl/internal/schema"
@@ -49,6 +52,9 @@ func init() {
 	rootCmd.AddCommand(incidentscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(vulnscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(posturecmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(riskscmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(attackchainscmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(inventorycmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
