@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
@@ -12,6 +13,7 @@ import (
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func ECSDisconnectCmd(clientFor cliclient.ClientFor) *cobra.Command {
@@ -32,7 +34,7 @@ func ECSDisconnectCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				Command: "cloudaccounts.ecs.disconnect",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "DELETE", "url": path + "?clusterARN=" + clusterARN},
@@ -42,10 +44,14 @@ func ECSDisconnectCmd(clientFor cliclient.ClientFor) *cobra.Command {
 					if err != nil {
 						return nil, safety.ExecMeta{}, err
 					}
-					defer resp.Body.Close()
+					defer func() { _ = resp.Body.Close() }()
 					if resp.StatusCode >= 400 {
 						b, _ := io.ReadAll(resp.Body)
-						return nil, safety.ExecMeta{}, &clierr.Error{Code: clierr.CodeServer, Msg: strings.TrimSpace(string(b))}
+						return nil, safety.ExecMeta{}, &clierr.Error{
+							Code:      codeForStatus(resp.StatusCode),
+							Msg:       strings.TrimSpace(string(b)),
+							RequestID: resp.Header.Get("x-request-id"),
+						}
 					}
 					return map[string]any{"disconnected": clusterARN}, safety.ExecMeta{URL: "DELETE " + path, Status: resp.StatusCode}, nil
 				},
