@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
@@ -9,6 +10,7 @@ import (
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func JiraCreateTicketCmd(clientFor cliclient.ClientFor) *cobra.Command {
@@ -52,7 +54,7 @@ func JiraCreateTicketCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				Command: "integrations.jira.create-ticket",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "POST", "url": "/integrations/jira/issueV2", "body": body},
