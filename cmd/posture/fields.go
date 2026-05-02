@@ -36,7 +36,7 @@ func FieldsCmd() *cobra.Command {
 			}
 			for _, s := range scopes {
 				printScope(out, s, cs[s])
-				fmt.Fprintln(out)
+				_, _ = fmt.Fprintln(out)
 			}
 			return nil
 		},
@@ -44,8 +44,8 @@ func FieldsCmd() *cobra.Command {
 }
 
 func printScope(out interface{ Write(p []byte) (int, error) }, scope string, fields []Field) {
-	fmt.Fprintf(out, "### %s\n", scope)
+	_, _ = fmt.Fprintf(out, "### %s\n", scope)
 	for _, f := range fields {
-		fmt.Fprintf(out, "  %-22s %s\n", f.Name, f.Doc)
+		_, _ = fmt.Fprintf(out, "  %-22s %s\n", f.Name, f.Doc)
 	}
 }
