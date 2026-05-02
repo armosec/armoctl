@@ -48,6 +48,5 @@ func GenerateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 		},
 	}
 	c.Flags().StringSlice("wlid", nil, "Workload ID (repeatable, required)")
-	_ = c.MarkFlagRequired("wlid")
 	return c
 }

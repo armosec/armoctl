@@ -4,6 +4,7 @@ import (
 	"net/url"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
+	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/output"
 	"github.com/spf13/cobra"
@@ -26,7 +27,7 @@ func ECSConnectCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				return err
 			}
 
-			return output.Render(cmd.OutOrStdout(), output.Get{Object: resp}, output.Options{})
+			return output.Render(cmd.OutOrStdout(), output.Get{Object: resp}, cliflags.OutputOptions(cmd, nil))
 		},
 	}
 	return c
