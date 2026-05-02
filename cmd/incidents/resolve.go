@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
@@ -15,7 +16,7 @@ import (
 	"golang.org/x/term"
 )
 
-func ResolveCmd(clientFor ClientFor) *cobra.Command {
+func ResolveCmd(clientFor cliclient.ClientFor) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "resolve [guid]",
 		Short: "Resolve a runtime incident (sets status to Resolved)",

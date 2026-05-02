@@ -1,18 +1,15 @@
 package incidents
 
 import (
+	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/apiclient"
 	"github.com/armosec/armoctl/internal/output"
 	"github.com/spf13/cobra"
 )
 
-// ClientFor returns the apiclient configured for the running command.
-// Cluster commands take this as a function so tests can inject stubs.
-type ClientFor func(cmd *cobra.Command) *apiclient.Client
-
 // ListCmd builds `armoctl incidents list`.
-func ListCmd(clientFor ClientFor) *cobra.Command {
+func ListCmd(clientFor cliclient.ClientFor) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "list",
 		Short: "List runtime incidents",
