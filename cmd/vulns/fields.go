@@ -16,6 +16,7 @@ func FieldsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "fields [scope]",
 		Short: "Print the vulns resource cheatsheet (optionally filtered by scope)",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			cs := Cheatsheet()

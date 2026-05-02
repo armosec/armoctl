@@ -339,6 +339,49 @@ func TestExceptionsUpdate_DryRun(t *testing.T) {
 	}
 }
 
+func TestExceptionsUpdate_NoNameOmitsField(t *testing.T) {
+	var capturedBody map[string]any
+	var hits int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		if r.Method != http.MethodPut {
+			t.Errorf("method: got %s, want PUT", r.Method)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&capturedBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, _ := newExcRoot(nil)
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsUpdateCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{
+		"exceptions", "update",
+		"--guid", "abc-123",
+		// intentionally omitting --name
+		"--cve", "CVE-2024-5678",
+		"--cluster", "prod",
+		"--yes",
+	})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Errorf("expected 1 server hit, got %d", hits)
+	}
+
+	if _, ok := capturedBody["name"]; ok {
+		t.Errorf("expected 'name' key to be absent from body when --name not passed, got body: %v", capturedBody)
+	}
+	if capturedBody["guid"] != "abc-123" {
+		t.Errorf("body.guid: got %v, want abc-123", capturedBody["guid"])
+	}
+}
+
 // isCliErr tries to assign err into *clierr.Error via errors.As semantics manually.
 func isCliErr(err error, target **clierr.Error) bool {
 	if err == nil {

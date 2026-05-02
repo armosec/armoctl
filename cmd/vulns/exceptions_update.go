@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
@@ -11,6 +12,7 @@ import (
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
@@ -68,11 +70,14 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 
 			body := map[string]any{
 				"guid":            guid,
-				"name":            name,
 				"policyType":      "vulnerabilityExceptionPolicy",
 				"actions":         []string{"ignore"},
 				"designators":     []any{designator},
 				"vulnerabilities": vulns,
+			}
+			// Only include optional fields when they were explicitly provided.
+			if name != "" {
+				body["name"] = name
 			}
 			if reason != "" {
 				body["reason"] = reason
@@ -89,7 +94,7 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				Command: "vulns.exceptions.update",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "PUT", "url": path, "body": body},
@@ -102,7 +107,11 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 					defer func() { _ = resp.Body.Close() }()
 					if resp.StatusCode >= 400 {
 						b, _ := io.ReadAll(resp.Body)
-						return nil, safety.ExecMeta{}, &clierr.Error{Code: clierr.CodeServer, Msg: strings.TrimSpace(string(b))}
+						return nil, safety.ExecMeta{}, &clierr.Error{
+							Code:      codeForStatus(resp.StatusCode),
+							Msg:       strings.TrimSpace(string(b)),
+							RequestID: resp.Header.Get("x-request-id"),
+						}
 					}
 					return map[string]any{"status": resp.StatusCode}, safety.ExecMeta{URL: "PUT " + path, Status: resp.StatusCode}, nil
 				},

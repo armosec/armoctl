@@ -1,6 +1,24 @@
 // Package vulns implements the `armoctl vulns` cluster.
 package vulns
 
+import "github.com/armosec/armoctl/internal/clierr"
+
+// codeForStatus returns the appropriate clierr.Code for an HTTP status code.
+func codeForStatus(s int) clierr.Code {
+	switch {
+	case s == 401, s == 403:
+		return clierr.CodeAuth
+	case s == 404:
+		return clierr.CodeNotFound
+	case s == 409:
+		return clierr.CodeConflict
+	case s >= 400 && s < 500:
+		return clierr.CodeBadInput
+	default:
+		return clierr.CodeServer
+	}
+}
+
 // Per-scope summary projections. The vuln endpoints return very different shapes
 // per scope, so each list command picks the right SummaryFields.
 

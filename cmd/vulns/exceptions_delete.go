@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
@@ -12,6 +13,7 @@ import (
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func ExceptionsDeleteCmd(clientFor cliclient.ClientFor) *cobra.Command {
@@ -29,8 +31,11 @@ func ExceptionsDeleteCmd(clientFor cliclient.ClientFor) *cobra.Command {
 
 			return safety.Wrap(cmd.Context(), safety.Args{
 				Command: "vulns.exceptions.delete",
-				DryRun:  m.DryRun, Yes: m.Yes, Tty: false,
-				Stdout: cmd.OutOrStdout(), Stderr: cmd.ErrOrStderr(),
+				DryRun:  m.DryRun,
+				Yes:     m.Yes,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
+				Stdout:  cmd.OutOrStdout(),
+				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "DELETE", "url": path + "?policyName=" + args[0]},
 				ArgsLog: "policyName=" + args[0],
 				Exec: func(ctx context.Context) (any, safety.ExecMeta, error) {
@@ -41,7 +46,11 @@ func ExceptionsDeleteCmd(clientFor cliclient.ClientFor) *cobra.Command {
 					defer func() { _ = resp.Body.Close() }()
 					if resp.StatusCode >= 400 {
 						b, _ := io.ReadAll(resp.Body)
-						return nil, safety.ExecMeta{}, &clierr.Error{Code: clierr.CodeServer, Msg: strings.TrimSpace(string(b))}
+						return nil, safety.ExecMeta{}, &clierr.Error{
+							Code:      codeForStatus(resp.StatusCode),
+							Msg:       strings.TrimSpace(string(b)),
+							RequestID: resp.Header.Get("x-request-id"),
+						}
 					}
 					return map[string]any{"deleted": args[0]}, safety.ExecMeta{URL: "DELETE " + path, Status: resp.StatusCode}, nil
 				},

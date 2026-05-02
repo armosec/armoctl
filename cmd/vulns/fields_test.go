@@ -42,3 +42,11 @@ func TestFieldsCmd_OneScope(t *testing.T) {
 		t.Fatalf("output missing wlid: %s", buf.String())
 	}
 }
+
+func TestFieldsCmd_ExtraArgsRejected(t *testing.T) {
+	cmd := FieldsCmd()
+	cmd.SetArgs([]string{"workloads", "extra"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for extra positional arg, got nil")
+	}
+}
