@@ -12,6 +12,7 @@ import (
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
+	posturecmd "github.com/armosec/armoctl/cmd/posture"
 	vulnscmd "github.com/armosec/armoctl/cmd/vulns"
 	"github.com/armosec/armoctl/internal/config"
 	schemacmd "github.com/armosec/armoctl/internal/schema"
@@ -47,6 +48,7 @@ func init() {
 	cliflags.Register(rootCmd)
 	rootCmd.AddCommand(incidentscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(vulnscmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(posturecmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
