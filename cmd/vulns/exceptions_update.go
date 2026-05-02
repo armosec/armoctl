@@ -99,7 +99,7 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 					if err != nil {
 						return nil, safety.ExecMeta{}, err
 					}
-					defer resp.Body.Close()
+					defer func() { _ = resp.Body.Close() }()
 					if resp.StatusCode >= 400 {
 						b, _ := io.ReadAll(resp.Body)
 						return nil, safety.ExecMeta{}, &clierr.Error{Code: clierr.CodeServer, Msg: strings.TrimSpace(string(b))}
