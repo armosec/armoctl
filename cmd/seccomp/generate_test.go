@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/apiclient"
-	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/spf13/cobra"
 )
 
@@ -136,6 +134,3 @@ func TestGenerate_NoWlidFails(t *testing.T) {
 	}
 }
 
-func isCliErr(err error, target **clierr.Error) bool {
-	return err != nil && errors.As(err, target)
-}
