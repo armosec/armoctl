@@ -1,0 +1,138 @@
+package risks
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/armosec/armoctl/cmd/cliflags"
+	"github.com/armosec/armoctl/internal/apiclient"
+	"github.com/spf13/cobra"
+)
+
+func makeServer(t *testing.T, wantPathSuffix string, wantMethod string, response any) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != wantMethod {
+			t.Errorf("method: got %s, want %s", r.Method, wantMethod)
+		}
+		if !strings.HasSuffix(r.URL.Path, wantPathSuffix) {
+			t.Errorf("path: got %s, want suffix %s", r.URL.Path, wantPathSuffix)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["pageNum"] == nil || body["pageSize"] == nil {
+			t.Errorf("body missing pageNum/pageSize: %v", body)
+		}
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+}
+
+func newRoot(clientFor func(*cobra.Command) *apiclient.Client) (*cobra.Command, *bytes.Buffer) {
+	root := &cobra.Command{Use: "armoctl"}
+	cliflags.Register(root)
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	return root, &stdout
+}
+
+func TestList_PostsList(t *testing.T) {
+	srv := makeServer(t, "/securityrisks/list", http.MethodPost, map[string]any{
+		"response": []map[string]any{{"name": "CVE-2024-123", "severity": "critical", "id": "risk-1"}},
+		"total":    map[string]any{"value": 1},
+	})
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, stdout := newRoot(nil)
+	root.AddCommand(ListCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.SetArgs([]string{"list"})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "CVE-2024-123") {
+		t.Fatalf("output missing expected field: %s", stdout.String())
+	}
+}
+
+func TestList_FiltersBySeverity(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method: %s", r.Method)
+		}
+		if !strings.HasSuffix(r.URL.Path, "/securityrisks/list") {
+			t.Errorf("path: %s", r.URL.Path)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["pageNum"] == nil || body["pageSize"] == nil {
+			t.Errorf("body missing pageNum/pageSize: %v", body)
+		}
+		fl, _ := body["innerFilters"].([]any)
+		if len(fl) != 1 {
+			t.Errorf("innerFilters: %v", body["innerFilters"])
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"response": []map[string]any{{"name": "risk-1", "severity": "critical"}},
+			"total":    map[string]any{"value": 1},
+		})
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root := &cobra.Command{Use: "armoctl"}
+	cliflags.Register(root)
+	root.AddCommand(ListCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+
+	var stdout bytes.Buffer
+	root.SetOut(&stdout)
+	root.SetArgs([]string{"list", "--severity", "critical"})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "risk-1") {
+		t.Fatalf("output: %s", stdout.String())
+	}
+}
+
+func TestResources_PostsList(t *testing.T) {
+	srv := makeServer(t, "/securityrisks/resources", http.MethodPost, map[string]any{
+		"response": []map[string]any{{"name": "my-app", "namespace": "default", "kind": "Deployment"}},
+		"total":    map[string]any{"value": 1},
+	})
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, stdout := newRoot(nil)
+	root.AddCommand(ResourcesCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.SetArgs([]string{"resources"})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "my-app") {
+		t.Fatalf("output missing expected field: %s", stdout.String())
+	}
+}
+
+func TestSeverities_PostsList(t *testing.T) {
+	srv := makeServer(t, "/securityrisks/severities", http.MethodPost, map[string]any{
+		"response": []map[string]any{{"severity": "critical", "count": 5}, {"severity": "high", "count": 10}},
+		"total":    map[string]any{"value": 2},
+	})
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, stdout := newRoot(nil)
+	root.AddCommand(SeveritiesCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.SetArgs([]string{"severities"})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "critical") {
+		t.Fatalf("output missing expected field: %s", stdout.String())
+	}
+}
