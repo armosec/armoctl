@@ -13,6 +13,7 @@ import (
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // UpdateCmd builds `armoctl runtime-rules update`.
@@ -70,7 +71,7 @@ func UpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				Command: "runtimerules.update",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "PUT", "url": path, "body": body},
@@ -80,10 +81,14 @@ func UpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 					if err != nil {
 						return nil, safety.ExecMeta{}, err
 					}
-					defer resp.Body.Close()
+					defer func() { _ = resp.Body.Close() }()
 					if resp.StatusCode >= 400 {
 						b, _ := io.ReadAll(resp.Body)
-						return nil, safety.ExecMeta{}, &clierr.Error{Code: clierr.CodeServer, Msg: strings.TrimSpace(string(b))}
+						return nil, safety.ExecMeta{}, &clierr.Error{
+							Code:      codeForStatus(resp.StatusCode),
+							Msg:       strings.TrimSpace(string(b)),
+							RequestID: resp.Header.Get("x-request-id"),
+						}
 					}
 					return map[string]any{"status": resp.StatusCode}, safety.ExecMeta{URL: "PUT " + path, Status: resp.StatusCode}, nil
 				},

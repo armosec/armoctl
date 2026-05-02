@@ -10,6 +10,7 @@ import (
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // CreateCmd builds `armoctl runtime-rules create`.
@@ -63,7 +64,7 @@ func CreateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				Command: "runtimerules.create",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "POST", "url": path, "body": body},
