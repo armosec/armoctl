@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
@@ -21,13 +20,18 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 		Short: "Update an existing vulnerability exception policy",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			guid, _ := cmd.Flags().GetString("guid")
-			name, _ := cmd.Flags().GetString("name")
 			cves, _ := cmd.Flags().GetStringArray("cve")
 			cluster, _ := cmd.Flags().GetString("cluster")
 			namespace, _ := cmd.Flags().GetString("namespace")
 			kind, _ := cmd.Flags().GetString("kind")
 			workload, _ := cmd.Flags().GetString("workload")
 			container, _ := cmd.Flags().GetString("container")
+			// Optional fields: include in body only if the flag was explicitly set
+			// (so users can intentionally clear a field via --name "").
+			nameSet := cmd.Flags().Changed("name")
+			reasonSet := cmd.Flags().Changed("reason")
+			expiresSet := cmd.Flags().Changed("expires")
+			name, _ := cmd.Flags().GetString("name")
 			reason, _ := cmd.Flags().GetString("reason")
 			expires, _ := cmd.Flags().GetString("expires")
 
@@ -75,14 +79,14 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				"designators":     []any{designator},
 				"vulnerabilities": vulns,
 			}
-			// Only include optional fields when they were explicitly provided.
-			if name != "" {
+			// Only include optional fields when their flags were explicitly set.
+			if nameSet {
 				body["name"] = name
 			}
-			if reason != "" {
+			if reasonSet {
 				body["reason"] = reason
 			}
-			if expires != "" {
+			if expiresSet {
 				body["expirationDate"] = expires
 			}
 
@@ -109,7 +113,7 @@ func ExceptionsUpdateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 						b, _ := io.ReadAll(resp.Body)
 						return nil, safety.ExecMeta{}, &clierr.Error{
 							Code:      codeForStatus(resp.StatusCode),
-							Msg:       strings.TrimSpace(string(b)),
+							Msg:       extractAPIMessage(b, resp.StatusCode),
 							RequestID: resp.Header.Get("x-request-id"),
 						}
 					}

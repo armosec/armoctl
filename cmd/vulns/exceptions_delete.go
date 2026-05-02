@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
@@ -48,7 +47,7 @@ func ExceptionsDeleteCmd(clientFor cliclient.ClientFor) *cobra.Command {
 						b, _ := io.ReadAll(resp.Body)
 						return nil, safety.ExecMeta{}, &clierr.Error{
 							Code:      codeForStatus(resp.StatusCode),
-							Msg:       strings.TrimSpace(string(b)),
+							Msg:       extractAPIMessage(b, resp.StatusCode),
 							RequestID: resp.Header.Get("x-request-id"),
 						}
 					}

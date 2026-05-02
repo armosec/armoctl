@@ -16,8 +16,10 @@ func FieldsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "fields [scope]",
 		Short: "Print the vulns resource cheatsheet (optionally filtered by scope)",
-		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 1 {
+				return &clierr.Error{Code: clierr.CodeBadInput, Msg: fmt.Sprintf("fields takes at most one scope (got %d)", len(args))}
+			}
 			out := cmd.OutOrStdout()
 			cs := Cheatsheet()
 			scopes := make([]string, 0, len(cs))

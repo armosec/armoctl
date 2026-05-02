@@ -2,8 +2,11 @@ package vulns
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/armosec/armoctl/internal/clierr"
 )
 
 func TestCheatsheetCoversAllScopes(t *testing.T) {
@@ -45,8 +48,15 @@ func TestFieldsCmd_OneScope(t *testing.T) {
 
 func TestFieldsCmd_ExtraArgsRejected(t *testing.T) {
 	cmd := FieldsCmd()
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
 	cmd.SetArgs([]string{"workloads", "extra"})
-	if err := cmd.Execute(); err == nil {
+	err := cmd.Execute()
+	if err == nil {
 		t.Fatal("expected error for extra positional arg, got nil")
+	}
+	var ce *clierr.Error
+	if !errors.As(err, &ce) || ce.Code != clierr.CodeBadInput {
+		t.Fatalf("error = %v, want clierr.CodeBadInput", err)
 	}
 }
