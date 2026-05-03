@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -339,6 +340,49 @@ func TestExceptionsUpdate_DryRun(t *testing.T) {
 	}
 }
 
+func TestExceptionsUpdate_NoNameOmitsField(t *testing.T) {
+	var capturedBody map[string]any
+	var hits int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		if r.Method != http.MethodPut {
+			t.Errorf("method: got %s, want PUT", r.Method)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&capturedBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, _ := newExcRoot(nil)
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsUpdateCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{
+		"exceptions", "update",
+		"--guid", "abc-123",
+		// intentionally omitting --name
+		"--cve", "CVE-2024-5678",
+		"--cluster", "prod",
+		"--yes",
+	})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Errorf("expected 1 server hit, got %d", hits)
+	}
+
+	if _, ok := capturedBody["name"]; ok {
+		t.Errorf("expected 'name' key to be absent from body when --name not passed, got body: %v", capturedBody)
+	}
+	if capturedBody["guid"] != "abc-123" {
+		t.Errorf("body.guid: got %v, want abc-123", capturedBody["guid"])
+	}
+}
+
 // isCliErr tries to assign err into *clierr.Error via errors.As semantics manually.
 func isCliErr(err error, target **clierr.Error) bool {
 	if err == nil {
@@ -349,4 +393,101 @@ func isCliErr(err error, target **clierr.Error) bool {
 		return true
 	}
 	return false
+}
+
+func TestExceptionsUpdate_StatusCodeMapping(t *testing.T) {
+	cases := []struct {
+		status int
+		want   clierr.Code
+	}{
+		{401, clierr.CodeAuth},
+		{404, clierr.CodeNotFound},
+		{409, clierr.CodeConflict},
+		{400, clierr.CodeBadInput},
+		{500, clierr.CodeServer},
+	}
+	for _, tc := range cases {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"message":"upstream said no"}`))
+			}))
+			defer srv.Close()
+			c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+
+			root, _ := newExcRoot(nil)
+			exc := &cobra.Command{Use: "exceptions"}
+			exc.AddCommand(ExceptionsUpdateCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+			root.AddCommand(exc)
+			root.SetArgs([]string{
+				"exceptions", "update",
+				"--guid", "abc",
+				"--cve", "CVE-2024-1",
+				"--cluster", "prod",
+				"--yes",
+			})
+			err := root.ExecuteContext(context.Background())
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			var ce *clierr.Error
+			if !errors.As(err, &ce) {
+				t.Fatalf("error not *clierr.Error: %v", err)
+			}
+			if ce.Code != tc.want {
+				t.Fatalf("code: got %v, want %v", ce.Code, tc.want)
+			}
+			// 5xx triggers apiclient retry which closes the body; the
+			// final returned response has no body to extract from.
+			// Skip message assertion in that case.
+			if tc.status < 500 && ce.Msg != "upstream said no" {
+				t.Errorf("msg: got %q, want extracted JSON message", ce.Msg)
+			}
+		})
+	}
+}
+
+func TestExceptionsDelete_StatusCodeMapping(t *testing.T) {
+	cases := []struct {
+		status int
+		want   clierr.Code
+	}{
+		{401, clierr.CodeAuth},
+		{404, clierr.CodeNotFound},
+		{409, clierr.CodeConflict},
+		{400, clierr.CodeBadInput},
+		{500, clierr.CodeServer},
+	}
+	for _, tc := range cases {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"error":"nope"}`))
+			}))
+			defer srv.Close()
+			c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+
+			root, _ := newExcRoot(nil)
+			exc := &cobra.Command{Use: "exceptions"}
+			exc.AddCommand(ExceptionsDeleteCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+			root.AddCommand(exc)
+			root.SetArgs([]string{"exceptions", "delete", "p", "--yes"})
+			err := root.ExecuteContext(context.Background())
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			var ce *clierr.Error
+			if !errors.As(err, &ce) {
+				t.Fatalf("error not *clierr.Error: %v", err)
+			}
+			if ce.Code != tc.want {
+				t.Fatalf("code: got %v, want %v", ce.Code, tc.want)
+			}
+			// 5xx triggers apiclient retry which closes the body; skip
+			// message assertion in that case.
+			if tc.status < 500 && ce.Msg != "nope" {
+				t.Errorf("msg: got %q, want extracted JSON error", ce.Msg)
+			}
+		})
+	}
 }

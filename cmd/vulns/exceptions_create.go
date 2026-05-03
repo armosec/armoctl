@@ -2,12 +2,14 @@ package vulns
 
 import (
 	"context"
+	"os"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	"github.com/armosec/armoctl/internal/clierr"
 	"github.com/armosec/armoctl/internal/safety"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func ExceptionsCreateCmd(clientFor cliclient.ClientFor) *cobra.Command {
@@ -81,7 +83,7 @@ func ExceptionsCreateCmd(clientFor cliclient.ClientFor) *cobra.Command {
 				Command: "vulns.exceptions.create",
 				DryRun:  m.DryRun,
 				Yes:     m.Yes,
-				Tty:     false,
+				Tty:     term.IsTerminal(int(os.Stdin.Fd())),
 				Stdout:  cmd.OutOrStdout(),
 				Stderr:  cmd.ErrOrStderr(),
 				Preview: map[string]any{"method": "POST", "url": path, "body": body},
