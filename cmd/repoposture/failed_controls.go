@@ -3,7 +3,6 @@ package repoposture
 import (
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
-	"github.com/armosec/armoctl/internal/apiclient"
 	"github.com/armosec/armoctl/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -14,25 +13,22 @@ func FailedControlsCmd(clientFor cliclient.ClientFor) *cobra.Command {
 		Short: "List failed controls per repo",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli := clientFor(cmd)
-			pg := cliflags.ReadPage(cmd)
-			body := map[string]any{}
-			if repo, _ := cmd.Flags().GetString("repository"); repo != "" {
-				body["innerFilters"] = []map[string]string{{"repoName": repo}}
+			reportGUID, _ := cmd.Flags().GetString("report-guid")
+			kind, _ := cmd.Flags().GetString("kind")
+			body := map[string]any{
+				"reportGUID": reportGUID,
+				"kind":       kind,
 			}
-			res, err := cli.ListPaged(cmd.Context(), "/repositoryPosture/failedControls", nil, apiclient.ListOpts{
-				Method:   "POST",
-				Body:     body,
-				Limit:    pg.Limit,
-				Page:     pg.Page,
-				PageSize: pg.PageSize,
-			})
-			if err != nil {
+			var result []any
+			if err := cli.PostJSON(cmd.Context(), "/repositoryPosture/failedControls", nil, body, &result); err != nil {
 				return err
 			}
-			list := output.List{Items: res.Items, Total: res.Total, Page: res.Page, PageSize: res.PageSize, NextCursor: res.NextCursor}
+			list := output.List{Items: result, Total: len(result)}
 			return output.Render(cmd.OutOrStdout(), list, cliflags.OutputOptions(cmd, FailedControlSummary))
 		},
 	}
-	c.Flags().String("repository", "", "Filter by repository name")
+	c.Flags().String("report-guid", "", "Report GUID (required)")
+	c.Flags().String("kind", "repo", "Entity kind: repo or file")
+	_ = c.MarkFlagRequired("report-guid")
 	return c
 }

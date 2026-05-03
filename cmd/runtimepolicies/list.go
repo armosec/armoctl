@@ -16,8 +16,11 @@ func ListCmd(clientFor cliclient.ClientFor) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli := clientFor(cmd)
 			pg := cliflags.ReadPage(cmd)
-			body := map[string]any{}
-			res, err := cli.ListPaged(cmd.Context(), "/runtime/policies", nil, apiclient.ListOpts{
+			rulesetType, _ := cmd.Flags().GetString("rulesettype")
+			body := map[string]any{
+				"innerFilters": []map[string]string{{"rulesettype": rulesetType}},
+			}
+			res, err := cli.ListPaged(cmd.Context(), "/runtime/policies/list", nil, apiclient.ListOpts{
 				Limit: pg.Limit, Page: pg.Page, PageSize: pg.PageSize,
 				Method: "POST", Body: body,
 			})
@@ -31,5 +34,6 @@ func ListCmd(clientFor cliclient.ClientFor) *cobra.Command {
 			return output.Render(cmd.OutOrStdout(), list, cliflags.OutputOptions(cmd, PolicySummary))
 		},
 	}
+	c.Flags().String("rulesettype", "Managed", "Filter by ruleset type (Managed or Custom)")
 	return c
 }

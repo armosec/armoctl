@@ -100,16 +100,39 @@ func TestList_FiltersBySeverity(t *testing.T) {
 }
 
 func TestResources_PostsList(t *testing.T) {
-	srv := makeServer(t, "/securityrisks/resources", http.MethodPost, map[string]any{
-		"response": []map[string]any{{"name": "my-app", "namespace": "default", "kind": "Deployment"}},
-		"total":    map[string]any{"value": 1},
-	})
+	// The live endpoint requires securityRiskID in innerFilters.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method: got %s, want POST", r.Method)
+		}
+		if !strings.HasSuffix(r.URL.Path, "/securityrisks/resources") {
+			t.Errorf("path: got %s, want suffix /securityrisks/resources", r.URL.Path)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["pageNum"] == nil || body["pageSize"] == nil {
+			t.Errorf("body missing pageNum/pageSize: %v", body)
+		}
+		fl, _ := body["innerFilters"].([]any)
+		if len(fl) == 0 {
+			t.Errorf("innerFilters missing: %v", body)
+		} else {
+			f := fl[0].(map[string]any)
+			if f["securityRiskID"] != "risk-abc" {
+				t.Errorf("securityRiskID: got %v, want risk-abc", f["securityRiskID"])
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"response": []map[string]any{{"name": "my-app", "namespace": "default", "kind": "Deployment"}},
+			"total":    map[string]any{"value": 1},
+		})
+	}))
 	defer srv.Close()
 
 	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
 	root, stdout := newRoot(nil)
 	root.AddCommand(ResourcesCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
-	root.SetArgs([]string{"resources"})
+	root.SetArgs([]string{"resources", "--risk-id", "risk-abc"})
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -119,10 +142,22 @@ func TestResources_PostsList(t *testing.T) {
 }
 
 func TestSeverities_PostsList(t *testing.T) {
-	srv := makeServer(t, "/securityrisks/severities", http.MethodPost, map[string]any{
-		"response": []map[string]any{{"severity": "critical", "count": 5}, {"severity": "high", "count": 10}},
-		"total":    map[string]any{"value": 2},
-	})
+	// The live endpoint returns a bare object (no response/total envelope).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method: got %s, want POST", r.Method)
+		}
+		if !strings.HasSuffix(r.URL.Path, "/securityrisks/severities") {
+			t.Errorf("path: got %s, want suffix /securityrisks/severities", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"response": map[string]any{
+				"severityResourceCounter": map[string]any{"Critical": 268, "High": 457},
+				"totalResources":          725,
+			},
+			"total": map[string]any{"value": 4, "relation": "eq"},
+		})
+	}))
 	defer srv.Close()
 
 	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
@@ -132,7 +167,7 @@ func TestSeverities_PostsList(t *testing.T) {
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "critical") {
+	if !strings.Contains(stdout.String(), "Critical") {
 		t.Fatalf("output missing expected field: %s", stdout.String())
 	}
 }
