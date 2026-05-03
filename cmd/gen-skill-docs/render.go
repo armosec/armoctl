@@ -47,7 +47,7 @@ func renderSkill(m skillmeta.Meta, clusterCmd *cobra.Command) []byte {
 			fmt.Fprintln(&b, "| Field | Description |")
 			fmt.Fprintln(&b, "|---|---|")
 			for _, f := range m.Cheatsheet[s] {
-				fmt.Fprintf(&b, "| `%s` | %s |\n", f.Name, escapePipes(f.Doc))
+				fmt.Fprintf(&b, "| `%s` | %s |\n", escapePipes(f.Name), escapePipes(f.Doc))
 			}
 			fmt.Fprintln(&b)
 		}

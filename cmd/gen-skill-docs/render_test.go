@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -60,5 +61,28 @@ func TestRenderSkill_Golden(t *testing.T) {
 			return
 		}
 		t.Errorf("renderSkill mismatch.\nGot:\n%s\nWant:\n%s", got, want)
+	}
+}
+
+func TestRenderSkill_EmptySectionsAreOmitted(t *testing.T) {
+	m := skillmeta.Meta{
+		Name:        "armoctl-bare",
+		Cluster:     "bare",
+		Description: "Minimal cluster.",
+		Summary:     "Has nothing but a name.",
+		// Cheatsheet, FieldNotes, Recipes all nil/empty
+	}
+	cmd := &cobra.Command{Use: "bare", Short: "Bare cluster"}
+
+	got := string(renderSkill(m, cmd))
+
+	for _, banned := range []string{"## Resource fields", "## Field semantics", "## Recipes"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("output should NOT contain %q when section is empty; got:\n%s", banned, got)
+		}
+	}
+	// Commands header IS unconditional
+	if !strings.Contains(got, "## Commands") {
+		t.Errorf("output should always contain '## Commands' header; got:\n%s", got)
 	}
 }
