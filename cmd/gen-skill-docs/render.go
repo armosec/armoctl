@@ -112,5 +112,3 @@ func oneLine(s string) string {
 func escapePipes(s string) string {
 	return strings.ReplaceAll(s, "|", `\|`)
 }
-
-func main() {} // replaced in Task 5
