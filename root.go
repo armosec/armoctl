@@ -18,6 +18,8 @@ import (
 	networkpoliciescmd "github.com/armosec/armoctl/cmd/networkpolicies"
 	posturecmd "github.com/armosec/armoctl/cmd/posture"
 	riskscmd "github.com/armosec/armoctl/cmd/risks"
+	runtimepoliciescmd "github.com/armosec/armoctl/cmd/runtimepolicies"
+	runtimerulescmd "github.com/armosec/armoctl/cmd/runtimerules"
 	seccompcmd "github.com/armosec/armoctl/cmd/seccomp"
 	vulnscmd "github.com/armosec/armoctl/cmd/vulns"
 	"github.com/armosec/armoctl/internal/config"
@@ -61,6 +63,8 @@ func init() {
 	rootCmd.AddCommand(networkpoliciescmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(seccompcmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(cloudaccountscmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(runtimerulescmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(runtimepoliciescmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
