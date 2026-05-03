@@ -8,7 +8,7 @@ import (
 
 func TestCheatsheetCoversAllScopes(t *testing.T) {
 	cs := Cheatsheet()
-	for _, want := range []string{"risks", "resources"} {
+	for _, want := range []string{"risks", "resources", "exceptions"} {
 		if len(cs[want]) < 4 {
 			t.Errorf("scope %q: cheatsheet too small (%d)", want, len(cs[want]))
 		}
@@ -23,7 +23,7 @@ func TestFieldsCmd_AllScopes(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"risks", "resources"} {
+	for _, want := range []string{"risks", "resources", "exceptions"} {
 		if !strings.Contains(buf.String(), "### "+want) {
 			t.Errorf("output missing scope header for %q", want)
 		}

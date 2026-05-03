@@ -91,7 +91,7 @@ Errors emit JSON to **stderr** (`{error, code, hint, requestId}`) so stdout stay
 | `incidents` | Runtime threat detections | list, alerts, explain, resolve, severities |
 | `vulns` | Vulnerability scanning | workloads/images/components/cves/hosts list, top, severity, history, scan, exceptions CRUD |
 | `posture` | Compliance | frameworks, controls, resources, exceptions list/create/delete |
-| `risks` | Prioritized security risks | list, resources, severities |
+| `risks` | Prioritized security risks | list, resources, severities, exceptions list/get/create/update/delete |
 | `attack-chains` | Linked threat sequences | list |
 | `inventory` | Workload inventory | list, unique-values |
 | `network-policies` | Network policy artifacts | list, generate |
@@ -170,12 +170,23 @@ armoctl integrations jira create-ticket \
 # Re-run with --yes when satisfied
 ```
 
-### 6.7 Risk prioritization
+### 6.7 Risk prioritization and acceptance
 
 ```bash
+# Inspect risks
 armoctl risks list --limit 10 --severity Critical --query '.items[] | {id, name, category}'
-armoctl risks severities                              # summary counts
+armoctl risks severities                               # summary counts
 armoctl risks resources --risk-id <risk-guid>          # resources affected by one risk
+
+# Accept a risk (dry-run first to inspect the request body)
+armoctl risks exceptions create --risk-id <risk-guid> --reason "compensating-control in place" --expires 2026-12-01T00:00:00Z --dry-run
+armoctl risks exceptions create --risk-id <risk-guid> --reason "compensating-control in place" --expires 2026-12-01T00:00:00Z --yes
+
+# Inspect / list / update / delete acceptances
+armoctl risks exceptions list
+armoctl risks exceptions get <guid>
+armoctl risks exceptions update --guid <guid> --risk-id <risk-guid> --reason "renewed for Q3" --yes
+armoctl risks exceptions delete <guid> --yes
 ```
 
 ## 7. Pitfalls
