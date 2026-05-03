@@ -25,8 +25,8 @@ func init() {
 				Body:  "```\narmoctl vulns cves --severity Critical --query '.items[] | select(.attributes.isRelevant == true)'\n```",
 			},
 			{
-				Title: "List exceptions for a CVE",
-				Body:  "```\narmoctl vulns exceptions list --cve CVE-2024-12345\n```",
+				Title: "Create an exception for a CVE in a workload",
+				Body:  "```\narmoctl vulns exceptions create --name 'CVE-2024-12345 exception' --cve CVE-2024-12345 --workload my-app --namespace default --reason 'Planned remediation' --dry-run\n```",
 			},
 		},
 	})
