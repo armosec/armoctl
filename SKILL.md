@@ -182,9 +182,10 @@ armoctl risks resources --risk-id <risk-guid>          # resources affected by o
 armoctl risks exceptions create --risk-id <risk-guid> --reason "compensating-control in place" --expires 2026-12-01T00:00:00Z --dry-run
 armoctl risks exceptions create --risk-id <risk-guid> --reason "compensating-control in place" --expires 2026-12-01T00:00:00Z --yes
 
-# Inspect / list / delete acceptances
+# Inspect / list / update / delete acceptances
 armoctl risks exceptions list
 armoctl risks exceptions get <guid>
+armoctl risks exceptions update --guid <guid> --risk-id <risk-guid> --reason "renewed for Q3" --yes
 armoctl risks exceptions delete <guid> --yes
 ```
 
