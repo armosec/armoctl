@@ -1,0 +1,16 @@
+{
+  "name": "armoctl",
+  "version": "0.0.7",
+  "description": "ARMO security platform CLI as a Claude skill — incidents, vulnerabilities, posture, risks, attack chains, runtime, network, integrations.",
+  "author": {
+    "name": "ARMO",
+    "email": "support@armosec.io",
+    "url": "https://www.armosec.io"
+  },
+  "homepage": "https://github.com/armosec/armoctl",
+  "repository": "https://github.com/armosec/armoctl",
+  "license": "Apache-2.0",
+  "keywords": ["security", "kubernetes", "cli", "ecs", "armo", "vulnerabilities", "posture"],
+  "skills": "./skills/",
+  "hooks": "./hooks/"
+}
