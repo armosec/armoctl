@@ -1570,11 +1570,12 @@ fi
 # Strip leading 'v' if present for comparison.
 norm() { echo "${1#v}"; }
 
+INSTALL_URL="https://package-distribution.armosec.io/armoctl/install.sh"
 if [ -z "$INSTALLED" ]; then
     echo "armoctl not found — installing v${PLUGIN_VERSION}…" >&2
-    if ! curl -fsSL https://armoctl.armosec.io/install.sh | sh; then
+    if ! curl -fsSL "$INSTALL_URL" | bash; then
         echo "armoctl install failed; the armoctl skill will not work this session." >&2
-        echo "Install manually: curl -fsSL https://armoctl.armosec.io/install.sh | sh" >&2
+        echo "Install manually: curl -fsSL $INSTALL_URL | bash" >&2
         exit 0
     fi
 elif [ "$(norm "$INSTALLED")" != "$(norm "$PLUGIN_VERSION")" ]; then
@@ -1706,7 +1707,9 @@ git commit -m "ci(release): bump plugin manifests on release; verify skill docs 
 
 ---
 
-### Task 14: Retire root SKILL.md and update README
+### Task 14: Retire root SKILL.md and write the README plugin section
+
+The README today documents only the ECS patcher use case. With the plugin landing, it must also explain (a) that armoctl exposes a full agent-driven CLI surface for the ARMO security platform, and (b) how to install the plugin so non-experts can pick it up from Claude Code or Gemini in one step.
 
 **Files:**
 - Delete: `SKILL.md`
@@ -1718,37 +1721,64 @@ git commit -m "ci(release): bump plugin manifests on release; verify skill docs 
 git rm SKILL.md
 ```
 
-- [ ] **Step 2: Update README install instructions**
+- [ ] **Step 2: Add a "Use from Claude Code" section near the top of the README**
 
-Open `README.md`. Find the section that mentions `SKILL.md` (search for it). Replace it with a "Use armoctl from Claude Code" section:
+Open `README.md`. Insert a new section immediately after the one-line description (i.e., after line 3 `CLI tool for instrumenting ECS task definitions...`) and before the existing `## 📦 Install` section. This places the plugin pitch above the manual install so casual readers see it first.
+
+The new section must contain exactly the following content (copy verbatim — the install command line and the plugin name strings are what users will paste):
 
 ```markdown
-## Use from Claude Code
+## 🤖 Use from Claude Code or Gemini CLI
 
-Install the armoctl Claude plugin:
+armoctl ships as a Claude Code plugin (and Gemini CLI extension) so AI assistants can drive the ARMO security platform directly: list incidents, triage CVEs, manage exception policies, generate network policies, and more.
+
+### Claude Code
 
 ```
 /plugin marketplace add armosec/armoctl
 /plugin install armoctl@armosec
 ```
 
-The plugin auto-installs the binary on first session start. Subsequent updates run automatically.
+The first time a session starts, the plugin checks for the `armoctl` binary on `PATH` and runs the official installer if it's missing. After that, the SessionStart hook keeps the binary on the same version as the plugin (running `armoctl update` whenever they drift).
 
-For Gemini CLI users, see `gemini-extension.json` (extension auto-loads if you add this repo to your Gemini extensions config).
+### Gemini CLI
+
+Add this repo as an extension. The Gemini extension loads the same skills as the Claude plugin from `skills/`. Install the binary first (see the next section).
+
+### What's in the plugin
+
+- A root `armoctl` skill covering setup, the JSON output contract (`--full` / `--fields` / `--query`), the mutation safety contract (`--dry-run` / `--yes`), and error semantics.
+- 13 per-cluster skills (`armoctl-incidents`, `armoctl-vulns`, `armoctl-posture`, `armoctl-risks`, `armoctl-attackchains`, `armoctl-inventory`, `armoctl-networkpolicies`, `armoctl-seccomp`, `armoctl-runtimerules`, `armoctl-runtimepolicies`, `armoctl-integrations`, `armoctl-cloudaccounts`, `armoctl-repoposture`) auto-loaded by description match when the user's task touches that cluster.
+- A SessionStart hook that ensures the binary is present and version-matched.
+
+### Configure once
+
+```bash
+armoctl configure   # interactive — saves to ~/.armoctl/config.yaml
+# or via env vars (preferred for headless agents):
+export ARMO_CUSTOMER_GUID=...
+export ARMO_ACCESS_KEY=...
+```
+
+Once configured, the agent can run any read-only command directly. Mutations require `--dry-run` for the preview and `--yes` to commit (or a confirmation prompt on a TTY).
 ```
 
 - [ ] **Step 3: Verify**
 
 ```bash
-grep -n SKILL.md README.md     # should match nothing in the install section
+grep -n "SKILL.md" README.md          # should match nothing
+grep -n "marketplace add armosec/armoctl" README.md   # should match in the new section
 test ! -f SKILL.md
+head -50 README.md                    # confirm new section sits above '## 📦 Install'
 ```
+
+Expected: no SKILL.md references; the marketplace install command appears; the new "🤖 Use from Claude Code or Gemini CLI" section sits between the one-line description and the existing manual install section.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add README.md
-git commit -m "docs: replace root SKILL.md pointer with plugin install instructions"
+git commit -m "docs(README): add plugin install section, retire root SKILL.md"
 ```
 
 ---
