@@ -342,3 +342,102 @@ func TestExceptionsUpdate_StatusCodeMapping(t *testing.T) {
 		})
 	}
 }
+
+func TestExceptionsDelete_Yes(t *testing.T) {
+	var capturedMethod, capturedPath string
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		capturedMethod = r.Method
+		capturedPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`["deleted"]`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, stdout := newExcRoot()
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsDeleteCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{"exceptions", "delete", "exc-guid", "--yes"})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Errorf("expected 1 hit, got %d", hits)
+	}
+	if capturedMethod != http.MethodDelete {
+		t.Errorf("method: got %s, want DELETE", capturedMethod)
+	}
+	if !strings.HasSuffix(capturedPath, "/securityrisks/exceptions/exc-guid") {
+		t.Errorf("path: got %s, want suffix /securityrisks/exceptions/exc-guid", capturedPath)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("output not JSON: %v — %s", err, stdout.String())
+	}
+	if changed, _ := result["changed"].(bool); !changed {
+		t.Errorf("expected changed=true: %v", result)
+	}
+}
+
+func TestExceptionsDelete_NoArgFails(t *testing.T) {
+	c := apiclient.New(apiclient.Config{BaseURL: "http://localhost", AccessKey: "K", CustomerGUID: "G"})
+	root, _ := newExcRoot()
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsDeleteCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{"exceptions", "delete", "--yes"})
+	err := root.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected error when guid arg missing")
+	}
+	var ce *clierr.Error
+	if !errors.As(err, &ce) || ce.Code != clierr.CodeBadInput {
+		t.Fatalf("expected CodeBadInput, got %v", err)
+	}
+}
+
+func TestExceptionsDelete_StatusCodeMapping(t *testing.T) {
+	cases := []struct {
+		status int
+		want   clierr.Code
+	}{
+		{401, clierr.CodeAuth},
+		{404, clierr.CodeNotFound},
+		{409, clierr.CodeConflict},
+		{400, clierr.CodeBadInput},
+		{500, clierr.CodeServer},
+	}
+	for _, tc := range cases {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"error":"nope"}`))
+			}))
+			defer srv.Close()
+			c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+
+			root, _ := newExcRoot()
+			exc := &cobra.Command{Use: "exceptions"}
+			exc.AddCommand(ExceptionsDeleteCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+			root.AddCommand(exc)
+			root.SetArgs([]string{"exceptions", "delete", "exc-guid", "--yes"})
+			err := root.ExecuteContext(context.Background())
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			var ce *clierr.Error
+			if !errors.As(err, &ce) {
+				t.Fatalf("error not *clierr.Error: %v", err)
+			}
+			if ce.Code != tc.want {
+				t.Fatalf("code: got %v, want %v", ce.Code, tc.want)
+			}
+			if tc.status < 500 && ce.Msg != "nope" {
+				t.Errorf("msg: got %q, want extracted JSON error", ce.Msg)
+			}
+		})
+	}
+}
