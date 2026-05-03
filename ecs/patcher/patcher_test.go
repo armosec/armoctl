@@ -8,6 +8,14 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
+func containersByName(td *TaskDefinition) map[string]*ecstypes.ContainerDefinition {
+	m := make(map[string]*ecstypes.ContainerDefinition, len(td.ContainerDefinitions))
+	for i := range td.ContainerDefinitions {
+		m[aws.ToString(td.ContainerDefinitions[i].Name)] = &td.ContainerDefinitions[i]
+	}
+	return m
+}
+
 func TestPatchMinimalTaskDef(t *testing.T) {
 	td := &TaskDefinition{
 		Family: aws.String("test-task"),
@@ -35,23 +43,16 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
-	// Verify 2 containers exist (app + sidecar, no volume-fixer by default).
 	if len(td.ContainerDefinitions) != 2 {
 		t.Fatalf("expected 2 containers, got %d", len(td.ContainerDefinitions))
 	}
 
-	// Find containers by name.
-	containers := make(map[string]*ecstypes.ContainerDefinition)
-	for i := range td.ContainerDefinitions {
-		containers[aws.ToString(td.ContainerDefinitions[i].Name)] = &td.ContainerDefinitions[i]
-	}
+	containers := containersByName(td)
 
-	// Verify no volume-fixer.
 	if _, ok := containers[volumeFixerName]; ok {
 		t.Error("volume-fixer should not be present when VolumeFixer is false")
 	}
 
-	// Verify sidecar-ptrace exists and is last.
 	sc, ok := containers[sidecarName]
 	if !ok {
 		t.Fatal("sidecar-ptrace container not found")
@@ -62,7 +63,6 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 			aws.ToString(td.ContainerDefinitions[lastIdx].Name))
 	}
 
-	// Verify sidecar has SYS_PTRACE capability.
 	if sc.LinuxParameters == nil || sc.LinuxParameters.Capabilities == nil {
 		t.Fatal("sidecar-ptrace missing LinuxParameters/Capabilities")
 	}
@@ -77,7 +77,6 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		t.Error("sidecar-ptrace missing SYS_PTRACE capability")
 	}
 
-	// Verify sidecar has CUSTOMERGUID env var.
 	foundGUID := false
 	for _, env := range sc.Environment {
 		if aws.ToString(env.Name) == "CUSTOMERGUID" && aws.ToString(env.Value) == "test-guid-123" {
@@ -89,7 +88,6 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		t.Error("sidecar-ptrace missing CUSTOMERGUID environment variable")
 	}
 
-	// Verify app container has dependsOn sidecar-ptrace HEALTHY.
 	app := containers["app"]
 	foundDep := false
 	for _, dep := range app.DependsOn {
@@ -102,7 +100,6 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		t.Error("app container missing dependsOn sidecar-ptrace HEALTHY")
 	}
 
-	// Verify app command is wrapped with ptrace-shim (exec-form prepend).
 	expectedCmd := []string{"/tmp/shared/ptrace-shim", "nginx", "-g", "daemon off;"}
 	if len(app.Command) != len(expectedCmd) {
 		t.Fatalf("expected app command %v, got %v", expectedCmd, app.Command)
@@ -113,12 +110,10 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		}
 	}
 
-	// Verify pidMode is "task".
 	if td.PidMode != ecstypes.PidModeTask {
 		t.Errorf("expected pidMode %q, got %q", ecstypes.PidModeTask, td.PidMode)
 	}
 
-	// Verify shared-data and profiles-data volumes exist.
 	volumeNames := make(map[string]bool)
 	for _, v := range td.Volumes {
 		volumeNames[aws.ToString(v.Name)] = true
@@ -128,6 +123,53 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 	}
 	if !volumeNames[profilesVolume] {
 		t.Error("profiles-data volume not found")
+	}
+}
+
+func TestPatchSidecarInheritsLogConfiguration(t *testing.T) {
+	logCfg := &ecstypes.LogConfiguration{
+		LogDriver: ecstypes.LogDriverAwslogs,
+		Options: map[string]string{
+			"awslogs-group":  "/ecs/test",
+			"awslogs-region": "us-east-1",
+		},
+	}
+	td := &TaskDefinition{
+		Family: aws.String("test-task"),
+		ContainerDefinitions: []ecstypes.ContainerDefinition{
+			{
+				Name:             aws.String("app"),
+				Image:            aws.String("nginx:latest"),
+				Essential:        aws.Bool(true),
+				LogConfiguration: logCfg,
+			},
+		},
+	}
+
+	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+		t.Fatalf("Patch() error: %v", err)
+	}
+
+	sc := containersByName(td)[sidecarName]
+	if sc == nil {
+		t.Fatal("sidecar-ptrace not found")
+	}
+	if sc.LogConfiguration == nil {
+		t.Fatal("sidecar-ptrace missing LogConfiguration")
+	}
+	if sc.LogConfiguration.LogDriver != ecstypes.LogDriverAwslogs {
+		t.Errorf("expected logDriver %q, got %q", ecstypes.LogDriverAwslogs, sc.LogConfiguration.LogDriver)
+	}
+	if sc.LogConfiguration.Options["awslogs-group"] != "/ecs/test" {
+		t.Errorf("expected awslogs-group %q, got %q", "/ecs/test", sc.LogConfiguration.Options["awslogs-group"])
+	}
+	if sc.LogConfiguration.Options["awslogs-stream-prefix"] != sidecarName {
+		t.Errorf("expected awslogs-stream-prefix %q, got %q", sidecarName, sc.LogConfiguration.Options["awslogs-stream-prefix"])
+	}
+	// Verify original container's log config is not mutated.
+	app := td.ContainerDefinitions[0]
+	if app.LogConfiguration.Options["awslogs-stream-prefix"] != "" {
+		t.Errorf("original container LogConfiguration was mutated")
 	}
 }
 
@@ -166,13 +208,8 @@ func TestPatchSelectiveContainers(t *testing.T) {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
-	// Find containers by name.
-	containers := make(map[string]*ecstypes.ContainerDefinition)
-	for i := range td.ContainerDefinitions {
-		containers[aws.ToString(td.ContainerDefinitions[i].Name)] = &td.ContainerDefinitions[i]
-	}
+	containers := containersByName(td)
 
-	// Verify web has dependsOn sidecar-ptrace.
 	web := containers["web"]
 	if web == nil {
 		t.Fatal("web container not found")
@@ -188,7 +225,6 @@ func TestPatchSelectiveContainers(t *testing.T) {
 		t.Error("web container should have dependsOn sidecar-ptrace")
 	}
 
-	// Verify worker does NOT have dependsOn sidecar-ptrace.
 	worker := containers["worker"]
 	if worker == nil {
 		t.Fatal("worker container not found")
@@ -200,7 +236,6 @@ func TestPatchSelectiveContainers(t *testing.T) {
 		}
 	}
 
-	// Verify worker command is NOT wrapped.
 	if len(worker.Command) > 0 && worker.Command[0] == "/tmp/shared/ptrace-shim" {
 		t.Error("worker command should NOT be wrapped with ptrace-shim")
 	}
@@ -261,23 +296,17 @@ func TestPatchEmptyCommand(t *testing.T) {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
-	// Find containers by name.
-	containers := make(map[string]*ecstypes.ContainerDefinition)
-	for i := range td.ContainerDefinitions {
-		containers[aws.ToString(td.ContainerDefinitions[i].Name)] = &td.ContainerDefinitions[i]
-	}
+	containers := containersByName(td)
 
 	app := containers["app"]
 	if app == nil {
 		t.Fatal("app container not found")
 	}
 
-	// Command should remain nil/empty — not wrapped.
 	if len(app.Command) > 0 {
 		t.Errorf("expected empty command for container without original command, got %v", app.Command)
 	}
 
-	// Should still have dependsOn and shared mount.
 	foundDep := false
 	for _, dep := range app.DependsOn {
 		if aws.ToString(dep.ContainerName) == sidecarName && dep.Condition == ecstypes.ContainerConditionHealthy {
@@ -326,10 +355,7 @@ func TestPatchPreservesPrivileged(t *testing.T) {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
-	containers := make(map[string]*ecstypes.ContainerDefinition)
-	for i := range td.ContainerDefinitions {
-		containers[aws.ToString(td.ContainerDefinitions[i].Name)] = &td.ContainerDefinitions[i]
-	}
+	containers := containersByName(td)
 
 	app := containers["app"]
 	if app == nil {
@@ -365,22 +391,16 @@ func TestPatchWithVolumeFixer(t *testing.T) {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
-	// Verify 3 containers exist (volume-fixer + app + sidecar).
 	if len(td.ContainerDefinitions) != 3 {
 		t.Fatalf("expected 3 containers, got %d", len(td.ContainerDefinitions))
 	}
 
-	// Verify volume-fixer is first.
 	if aws.ToString(td.ContainerDefinitions[0].Name) != volumeFixerName {
 		t.Errorf("expected volume-fixer to be first container, got %q",
 			aws.ToString(td.ContainerDefinitions[0].Name))
 	}
 
-	// Verify sidecar depends on volume-fixer.
-	containers := make(map[string]*ecstypes.ContainerDefinition)
-	for i := range td.ContainerDefinitions {
-		containers[aws.ToString(td.ContainerDefinitions[i].Name)] = &td.ContainerDefinitions[i]
-	}
+	containers := containersByName(td)
 	sc := containers[sidecarName]
 	if sc == nil {
 		t.Fatal("sidecar-ptrace not found")
@@ -394,6 +414,82 @@ func TestPatchWithVolumeFixer(t *testing.T) {
 	}
 	if !foundDep {
 		t.Error("sidecar should depend on volume-fixer when VolumeFixer is true")
+	}
+}
+
+func TestPatchSidecarLogConfigSkipsContainersWithoutLogConfig(t *testing.T) {
+	logCfg := &ecstypes.LogConfiguration{
+		LogDriver: ecstypes.LogDriverAwslogs,
+		Options: map[string]string{
+			"awslogs-group":         "/ecs/test",
+			"awslogs-region":        "us-east-1",
+			"awslogs-stream-prefix": "worker",
+		},
+	}
+	td := &TaskDefinition{
+		Family: aws.String("mixed-log-task"),
+		ContainerDefinitions: []ecstypes.ContainerDefinition{
+			{
+				Name:      aws.String("web"),
+				Image:     aws.String("nginx:latest"),
+				Essential: aws.Bool(true),
+				Command:   []string{"nginx"},
+				// No LogConfiguration
+			},
+			{
+				Name:             aws.String("worker"),
+				Image:            aws.String("python:3.11"),
+				Essential:        aws.Bool(true),
+				Command:          []string{"python", "worker.py"},
+				LogConfiguration: logCfg,
+			},
+		},
+	}
+
+	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+		t.Fatalf("Patch() error: %v", err)
+	}
+
+	sc := containersByName(td)[sidecarName]
+	if sc == nil {
+		t.Fatal("sidecar-ptrace not found")
+	}
+	if sc.LogConfiguration == nil {
+		t.Fatal("sidecar should inherit LogConfiguration from worker, got nil")
+	}
+	if sc.LogConfiguration.LogDriver != ecstypes.LogDriverAwslogs {
+		t.Errorf("expected logDriver %q, got %q", ecstypes.LogDriverAwslogs, sc.LogConfiguration.LogDriver)
+	}
+	if sc.LogConfiguration.Options["awslogs-group"] != "/ecs/test" {
+		t.Errorf("expected awslogs-group %q, got %q", "/ecs/test", sc.LogConfiguration.Options["awslogs-group"])
+	}
+	if sc.LogConfiguration.Options["awslogs-stream-prefix"] != sidecarName {
+		t.Errorf("expected awslogs-stream-prefix %q, got %q", sidecarName, sc.LogConfiguration.Options["awslogs-stream-prefix"])
+	}
+}
+
+func TestPatchSidecarNoLogConfigWhenNoTargetHasOne(t *testing.T) {
+	td := &TaskDefinition{
+		Family: aws.String("no-log-task"),
+		ContainerDefinitions: []ecstypes.ContainerDefinition{
+			{
+				Name:    aws.String("app"),
+				Image:   aws.String("nginx:latest"),
+				Command: []string{"nginx"},
+			},
+		},
+	}
+
+	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+		t.Fatalf("Patch() error: %v", err)
+	}
+
+	sc := containersByName(td)[sidecarName]
+	if sc == nil {
+		t.Fatal("sidecar-ptrace not found")
+	}
+	if sc.LogConfiguration != nil {
+		t.Errorf("expected nil LogConfiguration when no target has one, got %+v", sc.LogConfiguration)
 	}
 }
 

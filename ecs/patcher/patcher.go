@@ -8,11 +8,13 @@ import (
 )
 
 const (
-	sidecarName     = "sidecar-ptrace"
-	volumeFixerName = "volume-fixer"
-	sharedVolume    = "shared-data"
-	profilesVolume  = "profiles-data"
-	sharedMountPath = "/tmp/shared"
+	sidecarName       = "sidecar-ptrace"
+	volumeFixerName   = "volume-fixer"
+	volumeFixerImage  = "alpine:3.21"
+	sharedVolume      = "shared-data"
+	profilesVolume    = "profiles-data"
+	sharedMountPath   = "/tmp/shared"
+	shimPath          = sharedMountPath + "/ptrace-shim"
 	profilesMountPath = "/profiles"
 )
 
@@ -20,32 +22,33 @@ const (
 // sidecar and volume-fixer init container. Target containers are wrapped to
 // launch through the ptrace shim.
 func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
-	// 1. Check if already patched.
 	for _, c := range td.ContainerDefinitions {
 		if aws.ToString(c.Name) == sidecarName {
 			return fmt.Errorf("task definition is already patched: container %q exists", sidecarName)
 		}
 	}
 
-	// 2. Resolve target containers.
 	targets, err := resolveTargets(td, opts.Containers)
 	if err != nil {
 		return err
 	}
 
-	// 3. Add volumes if missing.
 	addVolumeIfMissing(td, sharedVolume)
 	addVolumeIfMissing(td, profilesVolume)
 
-	// 4. Set pidMode to "task".
 	td.PidMode = ecstypes.PidModeTask
 
-	// 5. Create sidecar-ptrace container.
+	// Inherit log configuration from the first target container so sidecar
+	// logs are shipped to the same log group. For awslogs, override the
+	// stream prefix so sidecar streams are distinguishable from app streams.
+	logConfig := sidecarLogConfig(td, targets)
+
 	sc := ecstypes.ContainerDefinition{
-		Name:      aws.String(sidecarName),
-		Image:     aws.String(sidecar.Image),
-		Essential: aws.Bool(true),
-		Command:   []string{"--shim"},
+		Name:             aws.String(sidecarName),
+		Image:            aws.String(sidecar.Image),
+		Essential:        aws.Bool(true),
+		Command:          []string{"--shim"},
+		LogConfiguration: logConfig,
 		Environment: []ecstypes.KeyValuePair{
 			{Name: aws.String("KS_LOGGER_LEVEL"), Value: aws.String("info")},
 			{Name: aws.String("HEALTH_REPORT_INTERVAL"), Value: aws.String("5s")},
@@ -62,7 +65,7 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 			},
 		},
 		HealthCheck: &ecstypes.HealthCheck{
-			Command:     []string{"CMD", "/usr/bin/ptrace-agent", "--health", "--shim"},
+			Command:     []string{"CMD", "/usr/bin/ptrace-agent", "--health", " --shim"},
 			Interval:    aws.Int32(5),
 			Timeout:     aws.Int32(2),
 			Retries:     aws.Int32(3),
@@ -70,13 +73,12 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 		},
 	}
 
-	// 6. Optionally create volume-fixer init container.
 	if opts.VolumeFixer {
 		volumeFixer := ecstypes.ContainerDefinition{
 			Name:      aws.String(volumeFixerName),
-			Image:     aws.String("alpine"),
+			Image:     aws.String(volumeFixerImage),
 			Essential: aws.Bool(false),
-			Command:   []string{"sh", "-c", "chmod -R 777 /tmp/shared && chown -R 1000:1000 /tmp/shared"},
+			Command:   []string{"sh", "-c", fmt.Sprintf("chmod -R 777 %s && chown -R 1000:1000 %s", sharedMountPath, sharedMountPath)},
 			MountPoints: []ecstypes.MountPoint{
 				{SourceVolume: aws.String(sharedVolume), ContainerPath: aws.String(sharedMountPath)},
 			},
@@ -87,7 +89,6 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 		td.ContainerDefinitions = append([]ecstypes.ContainerDefinition{volumeFixer}, td.ContainerDefinitions...)
 	}
 
-	// 7. Modify each target container.
 	for i := range td.ContainerDefinitions {
 		name := aws.ToString(td.ContainerDefinitions[i].Name)
 		if !targets[name] {
@@ -101,7 +102,6 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 			c.Command = wrapCommand(c.Command)
 		}
 
-		// Add shared volume mount if not already present.
 		hasSharedMount := false
 		for _, mp := range c.MountPoints {
 			if aws.ToString(mp.SourceVolume) == sharedVolume {
@@ -116,14 +116,12 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 			})
 		}
 
-		// Add dependsOn sidecar-ptrace HEALTHY.
 		c.DependsOn = append(c.DependsOn, ecstypes.ContainerDependency{
 			ContainerName: aws.String(sidecarName),
 			Condition:     ecstypes.ContainerConditionHealthy,
 		})
 	}
 
-	// 8. Append sidecar.
 	td.ContainerDefinitions = append(td.ContainerDefinitions, sc)
 
 	return nil
@@ -140,7 +138,6 @@ func resolveTargets(td *TaskDefinition, names []string) (map[string]bool, error)
 
 	targets := make(map[string]bool)
 	if len(names) == 0 {
-		// Patch all containers.
 		for name := range existing {
 			targets[name] = true
 		}
@@ -160,7 +157,43 @@ func resolveTargets(td *TaskDefinition, names []string) (map[string]bool, error)
 // ECS Command is exec-form ([]string), so each element is passed directly
 // as an argv entry with no shell interpretation.
 func wrapCommand(cmd []string) []string {
-	return append([]string{"/tmp/shared/ptrace-shim"}, cmd...)
+	return append([]string{shimPath}, cmd...)
+}
+
+// sidecarLogConfig returns a deep copy of the LogConfiguration of the first
+// target container that has one set, with the awslogs stream prefix
+// overridden to sidecarName so sidecar streams are distinguishable from app
+// streams. Returns nil if no target has a log configuration.
+func sidecarLogConfig(td *TaskDefinition, targets map[string]bool) *ecstypes.LogConfiguration {
+	for i := range td.ContainerDefinitions {
+		if targets[aws.ToString(td.ContainerDefinitions[i].Name)] {
+			src := td.ContainerDefinitions[i].LogConfiguration
+			if src == nil {
+				continue
+			}
+			copied := *src
+			// Only allocate an Options map when there is actually
+			// something to put in it. This preserves a nil source
+			// Options on non-awslogs drivers so the rendered task
+			// definition does not gain a spurious "options: {}".
+			if len(src.Options) > 0 || src.LogDriver == ecstypes.LogDriverAwslogs {
+				logOpts := make(map[string]string, len(src.Options)+1)
+				for k, v := range src.Options {
+					logOpts[k] = v
+				}
+				if src.LogDriver == ecstypes.LogDriverAwslogs {
+					logOpts["awslogs-stream-prefix"] = sidecarName
+				}
+				copied.Options = logOpts
+			}
+			if len(src.SecretOptions) > 0 {
+				copied.SecretOptions = make([]ecstypes.Secret, len(src.SecretOptions))
+				copy(copied.SecretOptions, src.SecretOptions)
+			}
+			return &copied
+		}
+	}
+	return nil
 }
 
 // addVolumeIfMissing adds a host volume with the given name if it does not
