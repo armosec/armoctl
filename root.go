@@ -12,10 +12,13 @@ import (
 	"github.com/armosec/armoctl/cmd/cliclient"
 	"github.com/armosec/armoctl/cmd/cliflags"
 	attackchainscmd "github.com/armosec/armoctl/cmd/attackchains"
+	cloudaccountscmd "github.com/armosec/armoctl/cmd/cloudaccounts"
 	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
 	inventorycmd "github.com/armosec/armoctl/cmd/inventory"
+	networkpoliciescmd "github.com/armosec/armoctl/cmd/networkpolicies"
 	posturecmd "github.com/armosec/armoctl/cmd/posture"
 	riskscmd "github.com/armosec/armoctl/cmd/risks"
+	seccompcmd "github.com/armosec/armoctl/cmd/seccomp"
 	vulnscmd "github.com/armosec/armoctl/cmd/vulns"
 	"github.com/armosec/armoctl/internal/config"
 	schemacmd "github.com/armosec/armoctl/internal/schema"
@@ -55,6 +58,9 @@ func init() {
 	rootCmd.AddCommand(riskscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(attackchainscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(inventorycmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(networkpoliciescmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(seccompcmd.Cmd(cliclient.Default(viper.GetString)))
+	rootCmd.AddCommand(cloudaccountscmd.Cmd(cliclient.Default(viper.GetString)))
 	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")
