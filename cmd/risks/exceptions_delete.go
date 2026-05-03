@@ -18,7 +18,6 @@ func ExceptionsDeleteCmd(clientFor cliclient.ClientFor) *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <guid>",
 		Short: "Delete a security-risk exception policy by GUID",
-		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return &clierr.Error{Code: clierr.CodeBadInput, Msg: "delete requires the exception GUID"}

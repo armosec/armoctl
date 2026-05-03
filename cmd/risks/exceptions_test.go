@@ -108,6 +108,23 @@ func TestExceptionsGet_NoArgFails(t *testing.T) {
 	}
 }
 
+func TestExceptionsGet_TooManyArgsFails(t *testing.T) {
+	c := apiclient.New(apiclient.Config{BaseURL: "http://localhost", AccessKey: "K", CustomerGUID: "G"})
+	root, _ := newExcRoot()
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsGetCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{"exceptions", "get", "a", "b"})
+	err := root.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected error when too many args provided")
+	}
+	var ce *clierr.Error
+	if !errors.As(err, &ce) || ce.Code != clierr.CodeBadInput {
+		t.Fatalf("expected CodeBadInput, got %v", err)
+	}
+}
+
 func TestExceptionsCreate_DryRun(t *testing.T) {
 	var hits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -392,6 +409,23 @@ func TestExceptionsDelete_NoArgFails(t *testing.T) {
 	err := root.ExecuteContext(context.Background())
 	if err == nil {
 		t.Fatal("expected error when guid arg missing")
+	}
+	var ce *clierr.Error
+	if !errors.As(err, &ce) || ce.Code != clierr.CodeBadInput {
+		t.Fatalf("expected CodeBadInput, got %v", err)
+	}
+}
+
+func TestExceptionsDelete_TooManyArgsFails(t *testing.T) {
+	c := apiclient.New(apiclient.Config{BaseURL: "http://localhost", AccessKey: "K", CustomerGUID: "G"})
+	root, _ := newExcRoot()
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsDeleteCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{"exceptions", "delete", "a", "b", "--yes"})
+	err := root.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected error when too many args provided")
 	}
 	var ce *clierr.Error
 	if !errors.As(err, &ce) || ce.Code != clierr.CodeBadInput {
