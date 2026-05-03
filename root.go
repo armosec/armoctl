@@ -41,6 +41,11 @@ func init() {
 	rootCmd.AddCommand(ecscmd.EcsCmd)
 	rootCmd.AddCommand(configureCmd)
 
+	// We copy the factory's children + persistent flags onto our existing rootCmd
+	// rather than using the factory's root directly, because rootCmd already has
+	// PersistentPreRun/PersistentPostRun and the version-check hooks wired up.
+	// Anything attached to the factory's root other than children and persistent
+	// flags will NOT carry over — keep the factory minimal.
 	built := rootcmd.NewRootCmd()
 	for _, sub := range built.Commands() {
 		rootCmd.AddCommand(sub)
