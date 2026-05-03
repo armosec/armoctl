@@ -128,7 +128,7 @@ The `vulns` cluster covers the runtime + scan vulnerability surface. The most im
 
 **`fixVersions`** — Versions that fix known CVEs. Empty means no fix available upstream — don't suggest 'upgrade' as a remediation in that case.
 
-**`isRelevant`** — Runtime-loaded vs. dormant on disk. Critical for triage: a Critical CVE in dormant code is much lower priority than the same CVE in an in-use library. Filter with `--query '.items[] | select(.attributes.isRelevant == true)'`.
+**`isRelevant`** — Runtime-loaded vs. dormant on disk. Critical for triage: a Critical CVE in dormant code is much lower priority than the same CVE in an in-use library. Filter with `--query '.items[] | select(.isRelevant == true)'`.
 
 **`severity`** — ARMO severity (critical | high | medium | low | unknown), not raw CVSS — already adjusted for runtime context and exception policies.
 
@@ -137,7 +137,7 @@ The `vulns` cluster covers the runtime + scan vulnerability surface. The most im
 ### Critical CVEs that are actually in use
 
 ```
-armoctl vulns cves --severity Critical --query '.items[] | select(.attributes.isRelevant == true)'
+armoctl vulns cves --severity Critical --query '.items[] | select(.isRelevant == true)'
 ```
 
 ### Create an exception for a CVE in a workload

@@ -14,7 +14,7 @@ func init() {
 			"in running workloads, so a Critical CVE in dormant code is a much lower priority " +
 			"than the same CVE in an in-use library. Always filter by isRelevant when scoping urgent work.",
 		FieldNotes: map[string]string{
-			"isRelevant":  "Runtime-loaded vs. dormant on disk. Critical for triage: a Critical CVE in dormant code is much lower priority than the same CVE in an in-use library. Filter with `--query '.items[] | select(.attributes.isRelevant == true)'`.",
+			"isRelevant":  "Runtime-loaded vs. dormant on disk. Critical for triage: a Critical CVE in dormant code is much lower priority than the same CVE in an in-use library. Filter with `--query '.items[] | select(.isRelevant == true)'`.",
 			"fixVersions": "Versions that fix known CVEs. Empty means no fix available upstream — don't suggest 'upgrade' as a remediation in that case.",
 			"severity":    "ARMO severity (critical | high | medium | low | unknown), not raw CVSS — already adjusted for runtime context and exception policies.",
 		},
@@ -22,7 +22,7 @@ func init() {
 		Recipes: []skillmeta.Recipe{
 			{
 				Title: "Critical CVEs that are actually in use",
-				Body:  "```\narmoctl vulns cves --severity Critical --query '.items[] | select(.attributes.isRelevant == true)'\n```",
+				Body:  "```\narmoctl vulns cves --severity Critical --query '.items[] | select(.isRelevant == true)'\n```",
 			},
 			{
 				Title: "Create an exception for a CVE in a workload",
