@@ -217,3 +217,128 @@ func TestExceptionsCreate_NoRiskIDFails(t *testing.T) {
 		t.Fatalf("expected CodeBadInput, got %v", err)
 	}
 }
+
+func TestExceptionsUpdate_DryRun(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, stdout := newExcRoot()
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsUpdateCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{
+		"exceptions", "update",
+		"--guid", "abc-123",
+		"--risk-id", "R-1",
+		"--reason", "extending-acceptance",
+		"--dry-run",
+	})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&hits) != 0 {
+		t.Errorf("server contacted during dry-run (%d hits)", hits)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("output not JSON: %v — %s", err, stdout.String())
+	}
+	req, _ := result["request"].(map[string]any)
+	body, _ := req["body"].(map[string]any)
+	if body["guid"] != "abc-123" {
+		t.Errorf("body.guid: got %v", body["guid"])
+	}
+	if req["method"] != "PUT" {
+		t.Errorf("method: got %v", req["method"])
+	}
+}
+
+func TestExceptionsUpdate_NoNameOmitsField(t *testing.T) {
+	var captured map[string]any
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		_ = json.NewDecoder(r.Body).Decode(&captured)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+	root, _ := newExcRoot()
+	exc := &cobra.Command{Use: "exceptions"}
+	exc.AddCommand(ExceptionsUpdateCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+	root.AddCommand(exc)
+	root.SetArgs([]string{
+		"exceptions", "update",
+		"--guid", "abc-123",
+		"--risk-id", "R-1",
+		"--yes",
+	})
+	if err := root.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Errorf("expected 1 hit, got %d", hits)
+	}
+	if _, ok := captured["name"]; ok {
+		t.Errorf("expected 'name' absent when --name not passed: %v", captured)
+	}
+	if captured["guid"] != "abc-123" {
+		t.Errorf("guid: got %v", captured["guid"])
+	}
+}
+
+func TestExceptionsUpdate_StatusCodeMapping(t *testing.T) {
+	cases := []struct {
+		status int
+		want   clierr.Code
+	}{
+		{401, clierr.CodeAuth},
+		{404, clierr.CodeNotFound},
+		{409, clierr.CodeConflict},
+		{400, clierr.CodeBadInput},
+		{500, clierr.CodeServer},
+	}
+	for _, tc := range cases {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"message":"upstream said no"}`))
+			}))
+			defer srv.Close()
+			c := apiclient.New(apiclient.Config{BaseURL: srv.URL, AccessKey: "K", CustomerGUID: "G"})
+
+			root, _ := newExcRoot()
+			exc := &cobra.Command{Use: "exceptions"}
+			exc.AddCommand(ExceptionsUpdateCmd(func(cmd *cobra.Command) *apiclient.Client { return c }))
+			root.AddCommand(exc)
+			root.SetArgs([]string{
+				"exceptions", "update",
+				"--guid", "abc",
+				"--risk-id", "R-1",
+				"--yes",
+			})
+			err := root.ExecuteContext(context.Background())
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			var ce *clierr.Error
+			if !errors.As(err, &ce) {
+				t.Fatalf("error not *clierr.Error: %v", err)
+			}
+			if ce.Code != tc.want {
+				t.Fatalf("code: got %v, want %v", ce.Code, tc.want)
+			}
+			// 5xx triggers apiclient retry which closes the body; skip
+			// message assertion in that case.
+			if tc.status < 500 && ce.Msg != "upstream said no" {
+				t.Errorf("msg: got %q, want extracted JSON message", ce.Msg)
+			}
+		})
+	}
+}
