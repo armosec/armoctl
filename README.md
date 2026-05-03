@@ -2,6 +2,40 @@
 
 CLI tool for instrumenting ECS task definitions with the ARMO runtime security agent.
 
+## 🤖 Use from Claude Code or Gemini CLI
+
+armoctl ships as a Claude Code plugin (and Gemini CLI extension) so AI assistants can drive the ARMO security platform directly: list incidents, triage CVEs, manage exception policies, generate network policies, and more.
+
+### Claude Code
+
+```
+/plugin marketplace add armosec/armoctl
+/plugin install armoctl@armosec
+```
+
+The first time a session starts, the plugin checks for the `armoctl` binary on `PATH` and runs the official installer if it's missing. After that, the SessionStart hook keeps the binary on the same version as the plugin (running `armoctl update` whenever they drift).
+
+### Gemini CLI
+
+Add this repo as an extension. The Gemini extension loads the same skills as the Claude plugin from `skills/`. Install the binary first (see the next section).
+
+### What's in the plugin
+
+- A root `armoctl` skill covering setup, the JSON output contract (`--full` / `--fields` / `--query`), the mutation safety contract (`--dry-run` / `--yes`), and error semantics.
+- 13 per-cluster skills (`armoctl-incidents`, `armoctl-vulns`, `armoctl-posture`, `armoctl-risks`, `armoctl-attack-chains`, `armoctl-inventory`, `armoctl-network-policies`, `armoctl-seccomp`, `armoctl-runtime-rules`, `armoctl-runtime-policies`, `armoctl-integrations`, `armoctl-cloud-accounts`, `armoctl-repo-posture`) auto-loaded by description match when the user's task touches that cluster.
+- A SessionStart hook that ensures the binary is present and version-matched.
+
+### Configure once
+
+```bash
+armoctl configure   # interactive — saves to ~/.armoctl/config.yaml
+# or via env vars (preferred for headless agents):
+export ARMO_CUSTOMER_GUID=...
+export ARMO_ACCESS_KEY=...
+```
+
+Once configured, the agent can run any read-only command directly. Mutations require `--dry-run` for the preview and `--yes` to commit (or a confirmation prompt on a TTY).
+
 ## 📦 Install
 
 ```bash
