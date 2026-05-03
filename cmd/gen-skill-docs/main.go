@@ -24,6 +24,10 @@ func main() {
 	flag.Parse()
 
 	root := rootcmd.NewRootCmd()
+	// byName maps cobra top-level subcommand name -> command. The skillmeta
+	// contract is "Meta.Cluster equals a top-level subcommand name". If
+	// clusters ever become hierarchical (e.g. "armoctl cloud aws"), this
+	// lookup must change.
 	byName := make(map[string]*cobra.Command)
 	for _, c := range root.Commands() {
 		byName[c.Name()] = c
@@ -32,29 +36,35 @@ func main() {
 	all := skillmeta.All()
 	sort.Slice(all, func(i, j int) bool { return all[i].Cluster < all[j].Cluster })
 
-	missing := []string{}
+	// Reconcile first: a registered cluster with no cobra subcommand is a
+	// programmer bug. Fail without writing anything so the working tree
+	// never ends up partially regenerated.
+	var missing []string
 	for _, m := range all {
-		c, ok := byName[m.Cluster]
-		if !ok {
+		if _, ok := byName[m.Cluster]; !ok {
 			missing = append(missing, m.Cluster)
-			continue
 		}
+	}
+	if len(missing) > 0 {
+		fmt.Fprintf(os.Stderr, "skillmeta registered clusters not found in cobra tree: %v\n", missing)
+		os.Exit(2)
+	}
+
+	// All clusters resolve. Render and write.
+	for _, m := range all {
+		c := byName[m.Cluster]
 		body := renderSkill(m, c)
 		dir := filepath.Join(*out, m.Name)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			die(err)
+			die(fmt.Errorf("mkdir %s for cluster %s: %w", dir, m.Cluster, err))
 		}
 		path := filepath.Join(dir, "SKILL.md")
 		if err := os.WriteFile(path, body, 0o644); err != nil {
-			die(err)
+			die(fmt.Errorf("write %s for cluster %s: %w", path, m.Cluster, err))
 		}
 		fmt.Printf("wrote %s\n", path)
 	}
 
-	if len(missing) > 0 {
-		fmt.Fprintf(os.Stderr, "warning: skillmeta registered clusters not found in cobra tree: %v\n", missing)
-		os.Exit(2)
-	}
 }
 
 func die(err error) {
