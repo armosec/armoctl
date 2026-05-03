@@ -14,6 +14,7 @@ const (
 	sharedVolume      = "shared-data"
 	profilesVolume    = "profiles-data"
 	sharedMountPath   = "/tmp/shared"
+	shimPath          = sharedMountPath + "/ptrace-shim"
 	profilesMountPath = "/profiles"
 )
 
@@ -77,7 +78,7 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 			Name:      aws.String(volumeFixerName),
 			Image:     aws.String(volumeFixerImage),
 			Essential: aws.Bool(false),
-			Command:   []string{"sh", "-c", "chmod -R 777 /tmp/shared && chown -R 1000:1000 /tmp/shared"},
+			Command:   []string{"sh", "-c", fmt.Sprintf("chmod -R 777 %s && chown -R 1000:1000 %s", sharedMountPath, sharedMountPath)},
 			MountPoints: []ecstypes.MountPoint{
 				{SourceVolume: aws.String(sharedVolume), ContainerPath: aws.String(sharedMountPath)},
 			},
@@ -156,13 +157,13 @@ func resolveTargets(td *TaskDefinition, names []string) (map[string]bool, error)
 // ECS Command is exec-form ([]string), so each element is passed directly
 // as an argv entry with no shell interpretation.
 func wrapCommand(cmd []string) []string {
-	return append([]string{"/tmp/shared/ptrace-shim"}, cmd...)
+	return append([]string{shimPath}, cmd...)
 }
 
-// sidecarLogConfig returns a deep copy of the first target container's
-// LogConfiguration, with the awslogs stream prefix overridden to sidecarName
-// so sidecar streams are distinguishable from app streams. Returns nil if no
-// target has a log configuration.
+// sidecarLogConfig returns a deep copy of the LogConfiguration of the first
+// target container that has one set, with the awslogs stream prefix
+// overridden to sidecarName so sidecar streams are distinguishable from app
+// streams. Returns nil if no target has a log configuration.
 func sidecarLogConfig(td *TaskDefinition, targets map[string]bool) *ecstypes.LogConfiguration {
 	for i := range td.ContainerDefinitions {
 		if targets[aws.ToString(td.ContainerDefinitions[i].Name)] {
@@ -171,14 +172,20 @@ func sidecarLogConfig(td *TaskDefinition, targets map[string]bool) *ecstypes.Log
 				continue
 			}
 			copied := *src
-			logOpts := make(map[string]string, len(src.Options))
-			for k, v := range src.Options {
-				logOpts[k] = v
+			// Only allocate an Options map when there is actually
+			// something to put in it. This preserves a nil source
+			// Options on non-awslogs drivers so the rendered task
+			// definition does not gain a spurious "options: {}".
+			if len(src.Options) > 0 || src.LogDriver == ecstypes.LogDriverAwslogs {
+				logOpts := make(map[string]string, len(src.Options)+1)
+				for k, v := range src.Options {
+					logOpts[k] = v
+				}
+				if src.LogDriver == ecstypes.LogDriverAwslogs {
+					logOpts["awslogs-stream-prefix"] = sidecarName
+				}
+				copied.Options = logOpts
 			}
-			if src.LogDriver == ecstypes.LogDriverAwslogs {
-				logOpts["awslogs-stream-prefix"] = sidecarName
-			}
-			copied.Options = logOpts
 			if len(src.SecretOptions) > 0 {
 				copied.SecretOptions = make([]ecstypes.Secret, len(src.SecretOptions))
 				copy(copied.SecretOptions, src.SecretOptions)
