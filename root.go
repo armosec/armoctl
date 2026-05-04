@@ -43,7 +43,21 @@ For scripts and AI-driven setup, prefer --access-key-stdin over
 
   echo "$ARMO_ACCESS_KEY" | armoctl configure \
       --customer-guid "$ARMO_CUSTOMER_GUID" \
-      --access-key-stdin`,
+      --access-key-stdin
+
+Hosts:
+  --api-base-url is the agent-bridge API host (default api.armosec.io)
+  used by every armoctl skill cluster: incidents, vulns, posture,
+  risks, runtime, network, etc. Override on non-default tenants
+  (e.g. api.us.armosec.io, api-dev.armosec.io).
+
+  --api-url is the legacy backend host (default cloud.armosec.io)
+  used by the ECS operator install and the version-check. Override
+  this if you run ECS commands against a non-default tenant
+  (e.g. cloud.us.armosec.io, cloud-dev.armosec.io). On production
+  the two hosts share a region prefix (api.us / cloud.us); on dev
+  they do not (api-dev / cloud-dev). Skill-only users do not need
+  to set --api-url.`,
 	RunE: runConfigure,
 }
 
@@ -92,8 +106,8 @@ func init() {
 	configureCmd.Flags().String("customer-guid", "", "ARMO Customer GUID")
 	configureCmd.Flags().String("access-key", "", "ARMO Access Key (avoid in shell history; prefer --access-key-stdin)")
 	configureCmd.Flags().Bool("access-key-stdin", false, "Read the access key from stdin (recommended for scripts/AI agents)")
-	configureCmd.Flags().String("api-base-url", "", "ARMO API base URL (default api.armosec.io)")
-	configureCmd.Flags().String("api-url", "", "ARMO dashboard URL (default cloud.armosec.io)")
+	configureCmd.Flags().String("api-base-url", "", "Agent-bridge API host — used by every armoctl skill cluster (default api.armosec.io)")
+	configureCmd.Flags().String("api-url", "", "Legacy backend host — used by ECS operator install and the version-check (default cloud.armosec.io)")
 
 	rootCmd.AddCommand(ecscmd.EcsCmd)
 	rootCmd.AddCommand(configureCmd)
