@@ -1,6 +1,6 @@
 {
   "name": "armoctl",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "ARMO security platform CLI as a Gemini extension.",
   "skills": "./skills/"
 }
