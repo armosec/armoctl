@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 # hooks/session-start.sh
 #
-# SessionStart hook for the armoctl Claude plugin.
+# SessionStart hook for the armoctl plugin/extension. Invoked by both
+# Claude Code (via ${CLAUDE_PLUGIN_ROOT} substitution) and Gemini CLI
+# (via ${extensionPath} substitution) — both auto-discover hooks/hooks.json
+# at the extension root and use the same JSON schema.
+#
 # - Ensures the armoctl binary is installed.
 # - If installed, ensures it matches the plugin's pinned version.
 # - Never blocks session start: prints actionable output and exits 0
 #   on failure paths.
 #
-# When something goes wrong the hook also emits a Claude-visible JSON
-# message on stdout via the SessionStart hookSpecificOutput contract so
-# the user actually sees the failure (stderr alone tends to be silent).
+# When something goes wrong the hook also emits a JSON message on stdout
+# via the SessionStart hookSpecificOutput contract so the user actually
+# sees the failure (stderr alone tends to be silent in Claude; Gemini may
+# ignore the JSON shape but the stderr path still surfaces).
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# Resolve the extension root from whichever variable the host set, falling
+# back to a path derived from $0 for standalone invocation.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${extensionPath:-$(cd "$(dirname "$0")/.." && pwd)}}"
 
 # emit_context prints a SessionStart hookSpecificOutput JSON blob on stdout.
 # Claude Code surfaces additionalContext as a system note in the session.

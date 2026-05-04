@@ -10,15 +10,21 @@ import (
 )
 
 // runHook invokes session-start.sh with PATH set so the stub binaries are found.
+// rootEnv selects which variable the script should use as its plugin root —
+// "CLAUDE_PLUGIN_ROOT" (the Claude Code path), "extensionPath" (the Gemini CLI
+// path), or "" to leave both unset and exercise the $0-relative fallback.
 // Returns combined stdout/stderr.
-func runHook(t *testing.T, stubPath, pluginRoot string) (string, error) {
+func runHook(t *testing.T, stubPath, pluginRoot, rootEnv string) (string, error) {
 	t.Helper()
 	repoRoot, _ := filepath.Abs("..")
 	cmd := exec.Command("bash", filepath.Join(repoRoot, "hooks/session-start.sh"))
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		"PATH="+stubPath+":"+os.Getenv("PATH"),
-		"CLAUDE_PLUGIN_ROOT="+pluginRoot,
 	)
+	if rootEnv != "" {
+		env = append(env, rootEnv+"="+pluginRoot)
+	}
+	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -56,7 +62,7 @@ func TestHook_VersionMatch_NoOp(t *testing.T) {
 	pluginRoot := makePluginJSON(t, t.TempDir(), "0.0.7")
 	makeStubArmoctl(t, stubDir, "0.0.7")
 
-	out, err := runHook(t, stubDir, pluginRoot)
+	out, err := runHook(t, stubDir, pluginRoot, "CLAUDE_PLUGIN_ROOT")
 	if err != nil {
 		t.Fatalf("hook failed: %v\n%s", err, out)
 	}
@@ -70,7 +76,7 @@ func TestHook_VersionMismatch_RunsUpdate(t *testing.T) {
 	pluginRoot := makePluginJSON(t, t.TempDir(), "0.0.8")
 	makeStubArmoctl(t, stubDir, "0.0.7")
 
-	out, err := runHook(t, stubDir, pluginRoot)
+	out, err := runHook(t, stubDir, pluginRoot, "CLAUDE_PLUGIN_ROOT")
 	if err != nil {
 		t.Fatalf("hook failed: %v\n%s", err, out)
 	}
@@ -86,7 +92,7 @@ func TestHook_BinaryMissing_PrintsInstallHint(t *testing.T) {
 	stubDir := t.TempDir() // no armoctl stub
 	pluginRoot := makePluginJSON(t, t.TempDir(), "0.0.7")
 
-	out, err := runHook(t, stubDir, pluginRoot)
+	out, err := runHook(t, stubDir, pluginRoot, "CLAUDE_PLUGIN_ROOT")
 	// Hook may exit 0 (graceful) even when curl install fails. We only
 	// assert it doesn't blow up the session and prints something useful.
 	if err != nil && !strings.Contains(out, "armoctl install failed") && !strings.Contains(out, "installing v0.0.7") {
@@ -94,5 +100,38 @@ func TestHook_BinaryMissing_PrintsInstallHint(t *testing.T) {
 	}
 	if !strings.Contains(out, "armoctl") {
 		t.Errorf("expected armoctl-related output, got: %s", out)
+	}
+}
+
+// Gemini CLI auto-discovers hooks/hooks.json at the extension root and
+// substitutes ${extensionPath} in the command field, but does not know
+// about ${CLAUDE_PLUGIN_ROOT}. Verify the script picks up the path from
+// 'extensionPath' alone — i.e. the hook works when only the Gemini-side
+// variable is set.
+func TestHook_VersionMatch_NoOp_Gemini(t *testing.T) {
+	stubDir := t.TempDir()
+	pluginRoot := makePluginJSON(t, t.TempDir(), "0.0.7")
+	makeStubArmoctl(t, stubDir, "0.0.7")
+
+	out, err := runHook(t, stubDir, pluginRoot, "extensionPath")
+	if err != nil {
+		t.Fatalf("hook failed under Gemini-style invocation: %v\n%s", err, out)
+	}
+	if _, statErr := os.Stat(filepath.Join(stubDir, "update_called")); statErr == nil {
+		t.Errorf("update should NOT have been called when versions match")
+	}
+}
+
+func TestHook_VersionMismatch_RunsUpdate_Gemini(t *testing.T) {
+	stubDir := t.TempDir()
+	pluginRoot := makePluginJSON(t, t.TempDir(), "0.0.8")
+	makeStubArmoctl(t, stubDir, "0.0.7")
+
+	out, err := runHook(t, stubDir, pluginRoot, "extensionPath")
+	if err != nil {
+		t.Fatalf("hook failed under Gemini-style invocation: %v\n%s", err, out)
+	}
+	if _, statErr := os.Stat(filepath.Join(stubDir, "update_called")); statErr != nil {
+		t.Errorf("update should have been called when versions differ under Gemini path. Output: %s", out)
 	}
 }
