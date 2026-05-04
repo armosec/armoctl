@@ -27,6 +27,13 @@ Add this repo as an extension. The Gemini extension loads the same skills as the
 
 ### Configure once
 
+You'll need two credentials:
+
+- **Customer GUID** — find it in the ARMO Platform UI, top-right account dropdown.
+- **Access key** — generate one at <https://cloud.armosec.io/settings/workspace/agent-access-keys> (or <https://cloud.us.armosec.io/settings/workspace/agent-access-keys> for US tenants).
+
+Then either:
+
 ```bash
 armoctl configure   # interactive — saves to ~/.armoctl/config.yaml
 # or via env vars (preferred for headless agents):

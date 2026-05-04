@@ -19,6 +19,10 @@ export ARMO_ACCESS_KEY="..."
 export ARMO_API_BASE_URL="api.armosec.io"   # default; override for staging
 ```
 
+**Where to find your credentials:**
+- **Customer GUID:** ARMO Platform UI → top-right account dropdown
+- **Access Key:** https://cloud.armosec.io/settings/workspace/agent-access-keys (EU) or https://cloud.us.armosec.io/settings/workspace/agent-access-keys (US)
+
 Credentials are stored at `~/.armoctl/config.yaml`. The audit log lives at `~/.armoctl/audit.log` (override via `$ARMOCTL_AUDIT_LOG`).
 
 ## 2. Output contract
