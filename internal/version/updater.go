@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -19,8 +20,18 @@ const (
 	MaxBinarySize = 100 * 1024 * 1024
 )
 
-// SelfUpdate downloads and replaces the current binary with the latest version.
-func SelfUpdate() error {
+// SelfUpdate downloads and replaces the current binary. If version is
+// non-empty, the version-pinned release path is used; otherwise the
+// floating armoctl_latest_* alias is used.
+//
+// Pinning to the version we just resolved from latest.txt avoids a
+// CloudFront window where latest.txt advertises vN+1 but the alias
+// path is still cached as vN: a user would otherwise see "Updated to
+// vN+1" while the binary on disk was still vN. The release workflow
+// uploads to /releases/<tag>/ first and only flips latest.txt last,
+// so the version-pinned URL is always serving the correct artifact
+// by the time latest.txt names it.
+func SelfUpdate(version string) error {
 	// Get current executable path
 	execPath, err := os.Executable()
 	if err != nil {
@@ -38,8 +49,7 @@ func SelfUpdate() error {
 		return err
 	}
 
-	// Build download URL
-	url := buildDownloadURL()
+	url := buildDownloadURL(version)
 
 	// Download to temp file
 	tmpFile, err := downloadToTemp(url)
@@ -56,14 +66,26 @@ func SelfUpdate() error {
 	return nil
 }
 
-// buildDownloadURL constructs the URL for the latest binary.
-func buildDownloadURL() string {
+// buildDownloadURL constructs the URL for an armoctl binary. If version
+// is non-empty, the version-pinned path under /releases/<tag>/ is
+// used; otherwise the floating armoctl_latest_* alias is returned
+// (kept as a fallback for callers that don't have a resolved version
+// — e.g. install.sh-style flows).
+func buildDownloadURL(version string) string {
 	ext := ""
 	if runtime.GOOS == "windows" {
 		ext = ".exe"
 	}
-	return fmt.Sprintf("%s/armoctl_latest_%s_%s%s",
-		DistributionURL, runtime.GOOS, runtime.GOARCH, ext)
+	if version == "" {
+		return fmt.Sprintf("%s/armoctl_latest_%s_%s%s",
+			DistributionURL, runtime.GOOS, runtime.GOARCH, ext)
+	}
+	// Normalize: tags on S3 live under "v<MAJOR>.<MINOR>.<PATCH>".
+	if !strings.HasPrefix(version, "v") {
+		version = "v" + version
+	}
+	return fmt.Sprintf("%s/releases/%s/armoctl_%s_%s%s",
+		DistributionURL, version, runtime.GOOS, runtime.GOARCH, ext)
 }
 
 // checkWritable verifies we can write to the binary location.

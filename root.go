@@ -167,7 +167,7 @@ func startVersionCheck(cmd *cobra.Command, args []string) {
 	go func() {
 		defer close(updateCheckResult)
 
-		latest, err := versionpkg.GetLatestVersions()
+		latest, err := versionpkg.GetLatestArmoctl()
 		if err != nil {
 			return // Silently ignore errors
 		}

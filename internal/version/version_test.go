@@ -3,8 +3,11 @@ package version
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -13,75 +16,20 @@ func TestCheckForUpdates(t *testing.T) {
 	tests := []struct {
 		name       string
 		current    string
-		latest     *Versions
+		latest     string
 		wantUpdate bool
 	}{
-		{
-			name:       "same version",
-			current:    "v0.0.42",
-			latest:     &Versions{Armoctl: "v0.0.42"},
-			wantUpdate: false,
-		},
-		{
-			name:       "new patch version available",
-			current:    "v0.0.40",
-			latest:     &Versions{Armoctl: "v0.0.42"},
-			wantUpdate: true,
-		},
-		{
-			name:       "new minor version available",
-			current:    "v0.1.0",
-			latest:     &Versions{Armoctl: "v0.2.0"},
-			wantUpdate: true,
-		},
-		{
-			name:       "new major version available",
-			current:    "v1.0.0",
-			latest:     &Versions{Armoctl: "v2.0.0"},
-			wantUpdate: true,
-		},
-		{
-			name:       "dev version - no update",
-			current:    "dev",
-			latest:     &Versions{Armoctl: "v0.0.42"},
-			wantUpdate: false,
-		},
-		{
-			name:       "empty version - no update",
-			current:    "",
-			latest:     &Versions{Armoctl: "v0.0.42"},
-			wantUpdate: false,
-		},
-		{
-			name:       "nil latest - no update",
-			current:    "v0.0.40",
-			latest:     nil,
-			wantUpdate: false,
-		},
-		{
-			name:       "current newer than latest (beta user)",
-			current:    "v0.0.50",
-			latest:     &Versions{Armoctl: "v0.0.42"},
-			wantUpdate: false,
-		},
-		{
-			name:       "semver comparison v0.0.9 vs v0.0.10",
-			current:    "v0.0.9",
-			latest:     &Versions{Armoctl: "v0.0.10"},
-			wantUpdate: true,
-		},
-		{
-			name:       "semver comparison v0.9.0 vs v0.10.0",
-			current:    "v0.9.0",
-			latest:     &Versions{Armoctl: "v0.10.0"},
-			wantUpdate: true,
-		},
-		{
-			name:       "pre-release version",
-			current:    "v0.0.42-rc1",
-			latest:     &Versions{Armoctl: "v0.0.42"},
-			wantUpdate: true,
-		},
+		{"same version", "v0.0.42", "v0.0.42", false},
+		{"new patch version available", "v0.0.40", "v0.0.42", true},
+		{"new minor version available", "v0.1.0", "v0.2.0", true},
+		{"new major version available", "v1.0.0", "v2.0.0", true},
+		{"dev version - no update", "dev", "v0.0.42", false},
+		{"empty current - no update", "", "v0.0.42", false},
+		{"empty latest - no update (fetch failed)", "v0.0.40", "", false},
+		{"current newer than latest (beta user)", "v0.0.50", "v0.0.42", false},
+		{"semver comparison v0.0.9 vs v0.0.10", "v0.0.9", "v0.0.10", true},
+		{"semver comparison v0.9.0 vs v0.10.0", "v0.9.0", "v0.10.0", true},
+		{"pre-release version", "v0.0.42-rc1", "v0.0.42", true},
 	}
 
 	for _, tt := range tests {
@@ -91,156 +39,168 @@ func TestCheckForUpdates(t *testing.T) {
 				t.Errorf("CheckForUpdates() HasUpdate = %v, want %v", info.HasUpdate, tt.wantUpdate)
 			}
 			if info.ArmoCtlCurrent != tt.current {
-				t.Errorf("CheckForUpdates() ArmoCtlCurrent = %v, want %v", info.ArmoCtlCurrent, tt.current)
+				t.Errorf("ArmoCtlCurrent = %v, want %v", info.ArmoCtlCurrent, tt.current)
 			}
-			if tt.latest != nil && info.ArmoCtlLatest != tt.latest.Armoctl {
-				t.Errorf("CheckForUpdates() ArmoCtlLatest = %v, want %v", info.ArmoCtlLatest, tt.latest.Armoctl)
+			if info.ArmoCtlLatest != tt.latest {
+				t.Errorf("ArmoCtlLatest = %v, want %v", info.ArmoCtlLatest, tt.latest)
 			}
 		})
 	}
 }
 
-func TestFetchLatestFromURL(t *testing.T) {
+func TestFetchLatestArmoctlFrom(t *testing.T) {
 	tests := []struct {
-		name           string
-		serverResponse func(w http.ResponseWriter, r *http.Request)
-		wantErr        bool
-		wantVersions   *Versions
+		name      string
+		body      string
+		status    int
+		want      string
+		wantError bool
 	}{
-		{
-			name: "successful fetch",
-			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				_ = json.NewEncoder(w).Encode(Versions{
-					Armoctl:     "v1.0.0",
-					ECSOperator:    "v2.0.0",
-					PtraceAgent: "v3.0.0",
-				})
-			},
-			wantErr: false,
-			wantVersions: &Versions{
-				Armoctl:     "v1.0.0",
-				ECSOperator:    "v2.0.0",
-				PtraceAgent: "v3.0.0",
-			},
-		},
-		{
-			name: "server returns 404",
-			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusNotFound)
-			},
-			wantErr: true,
-		},
-		{
-			name: "server returns 500",
-			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-			},
-			wantErr: true,
-		},
-		{
-			name: "server returns invalid JSON",
-			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte("not json"))
-			},
-			wantErr: true,
-		},
-		{
-			name: "server returns empty JSON",
-			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte("{}"))
-			},
-			wantErr:      false,
-			wantVersions: &Versions{},
-		},
+		{name: "happy path", body: "v0.0.10\n", status: 200, want: "v0.0.10"},
+		{name: "no trailing newline", body: "v1.2.3", status: 200, want: "v1.2.3"},
+		{name: "pre-release tag", body: "v0.0.10-rc1\n", status: 200, want: "v0.0.10-rc1"},
+		{name: "rejects HTML SPA fallthrough", body: "<!DOCTYPE html><html>", status: 200, wantError: true},
+		{name: "rejects empty body", body: "", status: 200, wantError: true},
+		{name: "rejects 404", body: "", status: 404, wantError: true},
+		{name: "rejects 500", body: "internal error", status: 500, wantError: true},
+		{name: "rejects JSON-shaped body without angle brackets", body: `{"version":"v0.0.10"}`, status: 200, wantError: true},
+		{name: "rejects bare integer", body: "1\n", status: 200, wantError: true},
+		{name: "rejects unprefixed version", body: "0.0.10\n", status: 200, wantError: true},
+		{name: "rejects BOM-prefixed valid version", body: "\xef\xbb\xbfv0.0.10\n", status: 200, wantError: true},
 	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
-			defer server.Close()
-
-			versions, err := FetchLatestFromURL(context.Background(), server.URL)
-
-			if tt.wantErr {
+			got, err := FetchLatestArmoctlFrom(context.Background(), srv.URL)
+			if tc.wantError {
 				if err == nil {
-					t.Error("FetchLatestFromURL() expected error, got nil")
+					t.Errorf("FetchLatestArmoctlFrom() = %q, want error", got)
 				}
 				return
 			}
-
 			if err != nil {
-				t.Errorf("FetchLatestFromURL() unexpected error: %v", err)
-				return
+				t.Fatalf("FetchLatestArmoctlFrom() unexpected error: %v", err)
 			}
-
-			if versions.Armoctl != tt.wantVersions.Armoctl {
-				t.Errorf("Armoctl = %v, want %v", versions.Armoctl, tt.wantVersions.Armoctl)
-			}
-			if versions.ECSOperator != tt.wantVersions.ECSOperator {
-				t.Errorf("ECSOperator = %v, want %v", versions.ECSOperator, tt.wantVersions.ECSOperator)
-			}
-			if versions.PtraceAgent != tt.wantVersions.PtraceAgent {
-				t.Errorf("PtraceAgent = %v, want %v", versions.PtraceAgent, tt.wantVersions.PtraceAgent)
+			if got != tc.want {
+				t.Errorf("FetchLatestArmoctlFrom() = %q, want %q", got, tc.want)
 			}
 		})
 	}
 }
 
-func TestFetchLatestFromURL_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate slow server
-		time.Sleep(100 * time.Millisecond)
-		_ = json.NewEncoder(w).Encode(Versions{Armoctl: "v1.0.0"})
+func TestFetchLatestArmoctlFrom_SizeCap(t *testing.T) {
+	// Server sends a 1 MiB body. The reader caps at maxLatestTxtBytes
+	// (64), and the truncated bytes ("aaaa…") fail semver validation
+	// — we want to confirm the cap fires (no OOM) and the validator
+	// rejects the garbage rather than us returning a bogus version.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("a", 1024*1024)))
 	}))
-	defer server.Close()
+	defer srv.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	_, err := FetchLatestFromURL(ctx, server.URL)
+	_, err := FetchLatestArmoctlFrom(context.Background(), srv.URL)
 	if err == nil {
-		t.Error("FetchLatestFromURL() expected error for cancelled context, got nil")
+		t.Fatal("expected error: 1MiB of 'a' should fail semver validation after truncation")
 	}
 }
 
-func TestFetchLatestFromURL_ResponseSizeLimit(t *testing.T) {
-	// Create a response larger than MaxResponseSize
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Write valid JSON prefix, then padding, to exceed limit
-		_, _ = w.Write([]byte(`{"armoctl":"v1.0.0"`))
-		// Write enough data to exceed the limit (but the limit reader will truncate)
-		padding := make([]byte, MaxResponseSize+1000)
-		for i := range padding {
-			padding[i] = ' '
-		}
-		_, _ = w.Write(padding)
-		_, _ = w.Write([]byte(`}`))
-	}))
-	defer server.Close()
-
-	// This should fail because the JSON will be truncated
-	_, err := FetchLatestFromURL(context.Background(), server.URL)
-	if err == nil {
-		t.Error("FetchLatestFromURL() expected error for oversized response")
+// writeArmoctlCache writes a cache file with the supplied age.
+// Negative age = future-dated (treated as fresh); positive = how far
+// in the past, e.g. (2 * CacheTTL) to make the entry stale.
+func writeArmoctlCache(t *testing.T, version string, age time.Duration) {
+	t.Helper()
+	if err := EnsureCacheDir(); err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(ArmoctlVersionCache{
+		FetchedAt: time.Now().Add(-age),
+		Version:   version,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := armoctlCachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, body, 0644); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestBuildDownloadURL(t *testing.T) {
-	url := buildDownloadURL()
+func TestGetLatestArmoctlWith_FreshCacheServed(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	writeArmoctlCache(t, "v9.9.9", 0)
 
-	// Should contain the distribution URL
-	if len(url) < len(DistributionURL) {
-		t.Errorf("buildDownloadURL() = %v, expected longer URL", url)
+	called := false
+	fetcher := func(_ context.Context) (string, error) {
+		called = true
+		return "v0.0.1", nil
+	}
+	got, err := getLatestArmoctlWith(fetcher)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "v9.9.9" {
+		t.Errorf("got %q, want v9.9.9 (from cache)", got)
+	}
+	if called {
+		t.Error("fetcher should not have been called when cache was fresh")
+	}
+}
+
+func TestGetLatestArmoctlWith_StaleCacheRefreshes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	writeArmoctlCache(t, "v0.0.1", 2*CacheTTL)
+
+	fetcher := func(_ context.Context) (string, error) {
+		return "v0.0.10", nil
+	}
+	got, err := getLatestArmoctlWith(fetcher)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "v0.0.10" {
+		t.Errorf("got %q, want v0.0.10 (from fetch)", got)
 	}
 
-	// Should contain the distribution URL prefix
-	if url[:len(DistributionURL)] != DistributionURL {
-		t.Errorf("buildDownloadURL() should start with %v, got %v", DistributionURL, url)
+	// Cache should now hold the new value with a fresh timestamp.
+	cached := loadArmoctlCache()
+	if cached == nil || cached.Version != "v0.0.10" {
+		t.Errorf("cache after refresh = %+v, want Version=v0.0.10", cached)
 	}
+}
 
-	// Should contain platform info
-	if len(url) == len(DistributionURL) {
-		t.Error("buildDownloadURL() should include platform suffix")
+func TestGetLatestArmoctlWith_FallsBackToStaleOnFetchError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	writeArmoctlCache(t, "v0.0.1", 2*CacheTTL)
+
+	fetcher := func(_ context.Context) (string, error) {
+		return "", fmt.Errorf("network unreachable")
+	}
+	got, err := getLatestArmoctlWith(fetcher)
+	if err != nil {
+		t.Fatalf("expected stale fallback, got error: %v", err)
+	}
+	if got != "v0.0.1" {
+		t.Errorf("got %q, want v0.0.1 (stale fallback)", got)
+	}
+}
+
+func TestGetLatestArmoctlWith_NoCacheNoFetchPropagatesError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	fetcher := func(_ context.Context) (string, error) {
+		return "", fmt.Errorf("network unreachable")
+	}
+	_, err := getLatestArmoctlWith(fetcher)
+	if err == nil {
+		t.Fatal("expected error when both cache and fetch are unavailable")
 	}
 }
 
@@ -265,14 +225,30 @@ func TestPadding(t *testing.T) {
 	}
 }
 
+
+// --- ECS image lookup: read-only consumers of the legacy multi-agent cache ---
+
+func writeMultiAgentCache(t *testing.T, v Versions) {
+	t.Helper()
+	if err := EnsureCacheDir(); err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(CachedVersions{FetchedAt: time.Now(), Versions: v})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := CachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, body, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGetAgentImage_NoCache(t *testing.T) {
-	// Use a temp home directory with no cache
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
+	t.Setenv("HOME", t.TempDir())
 	image := GetAgentImage()
-
-	// Should fall back to "latest" tag
 	expected := "015253967648.dkr.ecr.eu-north-1.amazonaws.com/ecs-ptrace-agent:latest"
 	if image != expected {
 		t.Errorf("GetAgentImage() = %v, want %v", image, expected)
@@ -280,75 +256,46 @@ func TestGetAgentImage_NoCache(t *testing.T) {
 }
 
 func TestGetAgentImage_WithCache(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", t.TempDir())
+	writeMultiAgentCache(t, Versions{PtraceAgent: "v3.0.0"})
 
-	// Save cache with specific version
-	versions := &Versions{
-		Armoctl:     "v1.0.0",
-		ECSOperator: "v2.0.0",
-		PtraceAgent: "v3.0.0",
-	}
-	_ = SaveCache(versions)
-
-	image := GetAgentImage()
-
-	// Should use cached version
 	expected := "015253967648.dkr.ecr.eu-north-1.amazonaws.com/ecs-ptrace-agent:v3.0.0"
-	if image != expected {
-		t.Errorf("GetAgentImage() = %v, want %v", image, expected)
+	if got := GetAgentImage(); got != expected {
+		t.Errorf("GetAgentImage() = %v, want %v", got, expected)
 	}
 }
 
 func TestGetOperatorImage_NoCache(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	image := GetOperatorImage("us-east-1")
-
-	// Should fall back to "latest" tag
+	t.Setenv("HOME", t.TempDir())
 	expected := "015253967648.dkr.ecr.us-east-1.amazonaws.com/ecs-operator:latest"
-	if image != expected {
-		t.Errorf("GetOperatorImage() = %v, want %v", image, expected)
+	if got := GetOperatorImage("us-east-1"); got != expected {
+		t.Errorf("GetOperatorImage() = %v, want %v", got, expected)
 	}
 }
 
 func TestGetOperatorImage_WithCache(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", t.TempDir())
+	writeMultiAgentCache(t, Versions{ECSOperator: "v2.0.0"})
 
-	// Save cache with specific version
-	versions := &Versions{
-		Armoctl:     "v1.0.0",
-		ECSOperator: "v2.0.0",
-		PtraceAgent: "v3.0.0",
-	}
-	_ = SaveCache(versions)
-
-	image := GetOperatorImage("eu-west-1")
-
-	// Should use cached version with correct region
-	expected := "015253967648.dkr.ecr.eu-west-1.amazonaws.com/ecs-operator:v2.0.0" // ECSOperator version
-	if image != expected {
-		t.Errorf("GetOperatorImage() = %v, want %v", image, expected)
+	expected := "015253967648.dkr.ecr.eu-west-1.amazonaws.com/ecs-operator:v2.0.0"
+	if got := GetOperatorImage("eu-west-1"); got != expected {
+		t.Errorf("GetOperatorImage() = %v, want %v", got, expected)
 	}
 }
 
 func TestGetOperatorImage_DifferentRegions(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	versions := &Versions{ECSOperator: "v1.0.0"}
-	_ = SaveCache(versions)
+	t.Setenv("HOME", t.TempDir())
+	writeMultiAgentCache(t, Versions{ECSOperator: "v1.0.0"})
 
 	regions := []string{"us-east-1", "us-west-2", "eu-north-1", "ap-southeast-1"}
 	for _, region := range regions {
 		t.Run(region, func(t *testing.T) {
 			image := GetOperatorImage(region)
-			expectedPrefix := "015253967648.dkr.ecr." + region + ".amazonaws.com/ecs-operator:v1.0.0"
-			if image != expectedPrefix {
-				t.Errorf("GetOperatorImage(%s) = %v, want %v", region, image, expectedPrefix)
+			expected := "015253967648.dkr.ecr." + region + ".amazonaws.com/ecs-operator:v1.0.0"
+			if image != expected {
+				t.Errorf("GetOperatorImage(%s) = %v, want %v", region, image, expected)
 			}
 		})
 	}
 }
+

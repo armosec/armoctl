@@ -7,31 +7,39 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
 func TestBuildDownloadURL_Platform(t *testing.T) {
-	url := buildDownloadURL()
-
-	// Should contain OS
 	expectedOS := runtime.GOOS
-	if expectedOS == "darwin" || expectedOS == "linux" || expectedOS == "windows" {
-		// Valid OS
-	} else {
+	if expectedOS != "darwin" && expectedOS != "linux" && expectedOS != "windows" {
 		t.Skipf("Skipping test on unsupported OS: %s", expectedOS)
 	}
-
-	// Should contain architecture
 	expectedArch := runtime.GOARCH
-	if expectedArch == "amd64" || expectedArch == "arm64" {
-		// Valid arch
-	} else {
+	if expectedArch != "amd64" && expectedArch != "arm64" {
 		t.Skipf("Skipping test on unsupported arch: %s", expectedArch)
 	}
 
-	// URL should contain both
-	if len(url) == 0 {
-		t.Error("buildDownloadURL() returned empty URL")
+	// Empty version → floating alias path (legacy/install.sh shape).
+	floating := buildDownloadURL("")
+	if floating == "" {
+		t.Error("buildDownloadURL(\"\") returned empty URL")
+	}
+	if !strings.Contains(floating, "armoctl_latest_") {
+		t.Errorf("buildDownloadURL(\"\") = %q, want to contain armoctl_latest_", floating)
+	}
+
+	// Non-empty version → version-pinned release path.
+	pinned := buildDownloadURL("v0.0.10")
+	if !strings.Contains(pinned, "/releases/v0.0.10/armoctl_") {
+		t.Errorf("buildDownloadURL(\"v0.0.10\") = %q, want /releases/v0.0.10/ path", pinned)
+	}
+
+	// Version without leading 'v' should still resolve to the same path.
+	bare := buildDownloadURL("0.0.10")
+	if bare != pinned {
+		t.Errorf("buildDownloadURL(\"0.0.10\") = %q, want = %q", bare, pinned)
 	}
 }
 
