@@ -28,3 +28,11 @@ verify-skill-docs:
 		git --no-pager diff -- skills/; \
 		exit 1; \
 	fi
+
+.PHONY: smoke
+
+# Run the high-level cluster smoke tests against a live tenant. Requires
+# ARMO_CUSTOMER_GUID, ARMO_ACCESS_KEY, ARMO_API_BASE_URL in the environment.
+# See scripts/README.md for details.
+smoke:
+	./scripts/smoke.sh
