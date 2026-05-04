@@ -73,7 +73,10 @@ Then either:
 }
 
 // PromptAllCredentials prompts for customer-guid, access-key, and api-url,
-// pre-filling with current values. Use this for the "configure" command.
+// pre-filling with current values for everything except the access key, which
+// is treated as a secret: the input starts empty, the field description shows
+// a masked preview of the saved key (if any), and an empty/whitespace
+// submission keeps the existing value. Use this for the "configure" command.
 func PromptAllCredentials() error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return fmt.Errorf("configure requires an interactive terminal")
@@ -121,9 +124,11 @@ func PromptAllCredentials() error {
 		return fmt.Errorf("prompting for credentials: %w", err)
 	}
 
+	// Trim whitespace so an accidental space-only submission is treated as
+	// "keep current" rather than overwriting the saved key with garbage.
 	key := existingKey
-	if newKey != "" {
-		key = newKey
+	if trimmed := strings.TrimSpace(newKey); trimmed != "" {
+		key = trimmed
 	}
 
 	viper.Set("customer-guid", guid)
