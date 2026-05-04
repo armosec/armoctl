@@ -48,6 +48,7 @@ Then either:
 				Validate(required("Customer GUID")),
 			huh.NewInput().
 				Title("Access Key").
+				EchoMode(huh.EchoModePassword).
 				Value(&key).
 				Validate(required("Access Key")),
 		),
@@ -79,7 +80,7 @@ func PromptAllCredentials() error {
 	}
 
 	guid := viper.GetString("customer-guid")
-	key := viper.GetString("access-key")
+	existingKey := viper.GetString("access-key")
 	apiURL := viper.GetString("api-url")
 
 	_, _ = fmt.Fprintln(os.Stderr, "Where to find your credentials:")
@@ -88,16 +89,27 @@ func PromptAllCredentials() error {
 	_, _ = fmt.Fprintln(os.Stderr, "                   (or https://cloud.us.armosec.io/... for US tenants)")
 	_, _ = fmt.Fprintln(os.Stderr, "")
 
+	// When a key is already saved, leave the input empty and show the masked
+	// current value as a hint. An empty submission means "keep current".
+	var newKey string
+	keyField := huh.NewInput().
+		Title("Access Key").
+		EchoMode(huh.EchoModePassword).
+		Value(&newKey)
+	if existingKey != "" {
+		keyField = keyField.
+			Description(fmt.Sprintf("Current: %s (leave empty to keep)", maskAccessKey(existingKey)))
+	} else {
+		keyField = keyField.Validate(required("Access Key"))
+	}
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Customer GUID").
 				Value(&guid).
 				Validate(required("Customer GUID")),
-			huh.NewInput().
-				Title("Access Key").
-				Value(&key).
-				Validate(required("Access Key")),
+			keyField,
 			huh.NewInput().
 				Title("API URL").
 				Value(&apiURL).
@@ -107,6 +119,11 @@ func PromptAllCredentials() error {
 
 	if err := form.Run(); err != nil {
 		return fmt.Errorf("prompting for credentials: %w", err)
+	}
+
+	key := existingKey
+	if newKey != "" {
+		key = newKey
 	}
 
 	viper.Set("customer-guid", guid)
@@ -182,6 +199,19 @@ func SaveConfig() error {
 func ApplyDefaults() {
 	viper.SetDefault("api-url", "cloud.armosec.io")
 	viper.SetDefault("api-base-url", "api.armosec.io")
+}
+
+// maskAccessKey renders a saved access key for display: short keys collapse to
+// all asterisks; longer keys show their first and last 4 characters with the
+// middle replaced by a fixed-width mask. Returns "" for an empty input.
+func maskAccessKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= 8 {
+		return strings.Repeat("*", len(key))
+	}
+	return key[:4] + "****" + key[len(key)-4:]
 }
 
 func required(label string) func(string) error {
