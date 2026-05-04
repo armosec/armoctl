@@ -17,7 +17,11 @@ The first time a session starts, the plugin checks for the `armoctl` binary on `
 
 ### Gemini CLI
 
-Add this repo as an extension. The Gemini extension loads the same skills as the Claude plugin from `skills/`. Install the binary first (see the next section).
+```
+gemini extension install https://github.com/armosec/armoctl
+```
+
+Gemini CLI first tries to fetch a release-asset bundle and fails with a 404, then offers a `git clone` fallback — answer **Y** to that prompt and accept the one-time review of hooks/skills. The extension loads the same skills as the Claude plugin and the same SessionStart hook installs/updates the `armoctl` binary on the first session. No need to install the binary manually first.
 
 ### What's in the plugin
 
