@@ -21,10 +21,13 @@ func init() {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	// Fetch latest version info
+	// Fetch latest version info from the binary distribution CDN.
+	// 'armoctl update' deliberately does not depend on configured
+	// credentials — anyone should be able to upgrade without first
+	// running 'armoctl configure'.
 	cmd.Println("Checking for updates...")
 
-	latest, err := versionpkg.FetchLatest()
+	latest, err := versionpkg.FetchLatestArmoctl(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("checking for updates: %w", err)
 	}
@@ -37,7 +40,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Current version: %s\n", Version)
-	cmd.Printf("Latest version:  %s\n", latest.Armoctl)
+	cmd.Printf("Latest version:  %s\n", latest)
 	cmd.Println()
 
 	// Show where the binary is located
@@ -55,7 +58,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Println()
-	cmd.Printf("Successfully updated to %s\n", latest.Armoctl)
+	cmd.Printf("Successfully updated to %s\n", latest)
 
 	// Verify the update by running version command
 	cmd.Println()

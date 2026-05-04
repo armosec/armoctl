@@ -103,12 +103,18 @@ jobs:
                   aws s3 cp install.sh \
                     s3://armo-host-agent-publish-repository/armoctl/install.sh
 
+                  echo "Publishing latest.txt for armoctl update checks..."
+                  printf '%s\n' "${{ steps.version.outputs.tag }}" > /tmp/armoctl-latest.txt
+                  aws s3 cp /tmp/armoctl-latest.txt \
+                    s3://armo-host-agent-publish-repository/armoctl/latest.txt \
+                    --content-type text/plain --cache-control "max-age=60"
+
             - name: Invalidate CloudFront cache
               run: |
                   echo "Invalidating CloudFront cache for latest aliases..."
                   aws cloudfront create-invalidation \
                     --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-                    --paths "/armoctl/armoctl_latest_*" "/armoctl/install.sh"
+                    --paths "/armoctl/armoctl_latest_*" "/armoctl/install.sh" "/armoctl/latest.txt"
 
             - name: Publish Release
               uses: actions/github-script@v7

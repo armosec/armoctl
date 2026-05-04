@@ -8,54 +8,50 @@ import (
 	"time"
 )
 
-func TestCacheRoundTrip(t *testing.T) {
-	// Create a temporary directory for the test
+// The multi-agent fetch path that used to populate this cache has been
+// removed; the cache file is read-only now (consumed by ECS image
+// helpers, populated by nothing). These tests cover the read+layout
+// invariants that ECS still depends on.
+
+func TestLoadCache_RoundTrip_ReadOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	versions := &Versions{
-		Armoctl:     "v1.0.0",
-		ECSOperator: "v2.0.0",
-		PtraceAgent: "v3.0.0",
+	// Hand-write a cache file the way ECS would have observed one
+	// historically and verify LoadCache parses it.
+	dir := filepath.Join(tmpDir, ".armoctl", "cache")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
 	}
-
-	// Save to cache
-	err := SaveCache(versions)
+	want := CachedVersions{
+		FetchedAt: time.Now(),
+		Versions: Versions{
+			Armoctl:     "v1.0.0",
+			ECSOperator: "v2.0.0",
+			PtraceAgent: "v3.0.0",
+		},
+	}
+	body, err := json.Marshal(want)
 	if err != nil {
-		t.Fatalf("SaveCache() error = %v", err)
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, CacheFile), body, 0644); err != nil {
+		t.Fatal(err)
 	}
 
-	// Load from cache
-	cached := LoadCache()
-	if cached == nil {
-		t.Fatal("LoadCache() returned nil")
+	got := LoadCache()
+	if got == nil {
+		t.Fatal("LoadCache() returned nil for a valid cache file")
 	}
-
-	// Verify versions
-	if cached.Versions.Armoctl != versions.Armoctl {
-		t.Errorf("Armoctl = %v, want %v", cached.Versions.Armoctl, versions.Armoctl)
-	}
-	if cached.Versions.ECSOperator != versions.ECSOperator {
-		t.Errorf("ECSOperator = %v, want %v", cached.Versions.ECSOperator, versions.ECSOperator)
-	}
-	if cached.Versions.PtraceAgent != versions.PtraceAgent {
-		t.Errorf("PtraceAgent = %v, want %v", cached.Versions.PtraceAgent, versions.PtraceAgent)
-	}
-
-	// Verify timestamp is recent
-	if time.Since(cached.FetchedAt) > time.Second {
-		t.Errorf("FetchedAt is too old: %v", cached.FetchedAt)
+	if got.Versions.PtraceAgent != "v3.0.0" || got.Versions.ECSOperator != "v2.0.0" {
+		t.Errorf("LoadCache() = %+v, want PtraceAgent=v3.0.0 ECSOperator=v2.0.0", got.Versions)
 	}
 }
 
 func TestLoadCache_NonExistent(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	// Should return nil when cache doesn't exist
-	cached := LoadCache()
-	if cached != nil {
-		t.Errorf("LoadCache() = %v, want nil for non-existent cache", cached)
+	t.Setenv("HOME", t.TempDir())
+	if got := LoadCache(); got != nil {
+		t.Errorf("LoadCache() = %v, want nil for non-existent cache", got)
 	}
 }
 
@@ -63,61 +59,16 @@ func TestLoadCache_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	// Create cache directory and invalid file
 	cacheDir := filepath.Join(tmpDir, ".armoctl", "cache")
-	_ = os.MkdirAll(cacheDir, 0755)
-	_ = os.WriteFile(filepath.Join(cacheDir, "versions.json"), []byte("not json"), 0644)
-
-	// Should return nil for invalid JSON
-	cached := LoadCache()
-	if cached != nil {
-		t.Errorf("LoadCache() = %v, want nil for invalid JSON", cached)
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestIsCacheStale(t *testing.T) {
-	tests := []struct {
-		name      string
-		cached    *CachedVersions
-		wantStale bool
-	}{
-		{
-			name:      "nil cache is stale",
-			cached:    nil,
-			wantStale: true,
-		},
-		{
-			name: "fresh cache is not stale",
-			cached: &CachedVersions{
-				FetchedAt: time.Now(),
-				Versions:  Versions{Armoctl: "v1.0.0"},
-			},
-			wantStale: false,
-		},
-		{
-			name: "old cache is stale",
-			cached: &CachedVersions{
-				FetchedAt: time.Now().Add(-2 * time.Hour), // Older than CacheTTL
-				Versions:  Versions{Armoctl: "v1.0.0"},
-			},
-			wantStale: true,
-		},
-		{
-			name: "cache at TTL boundary is not stale",
-			cached: &CachedVersions{
-				FetchedAt: time.Now().Add(-50 * time.Minute), // Just under CacheTTL
-				Versions:  Versions{Armoctl: "v1.0.0"},
-			},
-			wantStale: false,
-		},
+	if err := os.WriteFile(filepath.Join(cacheDir, CacheFile), []byte("not json"), 0644); err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsCacheStale(tt.cached); got != tt.wantStale {
-				t.Errorf("IsCacheStale() = %v, want %v", got, tt.wantStale)
-			}
-		})
+	if got := LoadCache(); got != nil {
+		t.Errorf("LoadCache() = %v, want nil for invalid JSON", got)
 	}
 }
 
@@ -126,12 +77,9 @@ func TestCachePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CachePath() error = %v", err)
 	}
-
 	if path == "" {
 		t.Error("CachePath() returned empty string")
 	}
-
-	// Should contain the expected path components
 	if filepath.Base(path) != CacheFile {
 		t.Errorf("CachePath() basename = %v, want %v", filepath.Base(path), CacheFile)
 	}
@@ -141,69 +89,16 @@ func TestEnsureCacheDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	err := EnsureCacheDir()
-	if err != nil {
+	if err := EnsureCacheDir(); err != nil {
 		t.Fatalf("EnsureCacheDir() error = %v", err)
 	}
 
-	// Check directory was created
 	cacheDir := filepath.Join(tmpDir, ".armoctl", "cache")
 	info, err := os.Stat(cacheDir)
 	if err != nil {
-		t.Fatalf("Cache directory not created: %v", err)
+		t.Fatalf("cache directory not created: %v", err)
 	}
 	if !info.IsDir() {
-		t.Error("Cache path is not a directory")
-	}
-}
-
-func TestSaveCache_CreatesDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	versions := &Versions{Armoctl: "v1.0.0"}
-
-	// Directory doesn't exist yet
-	err := SaveCache(versions)
-	if err != nil {
-		t.Fatalf("SaveCache() error = %v", err)
-	}
-
-	// Verify file was created
-	cachePath := filepath.Join(tmpDir, ".armoctl", "cache", "versions.json")
-	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
-		t.Error("Cache file was not created")
-	}
-}
-
-func TestCacheFileFormat(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	versions := &Versions{
-		Armoctl:     "v1.0.0",
-		ECSOperator: "v2.0.0",
-		PtraceAgent: "v3.0.0",
-	}
-
-	err := SaveCache(versions)
-	if err != nil {
-		t.Fatalf("SaveCache() error = %v", err)
-	}
-
-	// Read raw file and verify JSON structure
-	cachePath := filepath.Join(tmpDir, ".armoctl", "cache", "versions.json")
-	data, err := os.ReadFile(cachePath)
-	if err != nil {
-		t.Fatalf("Failed to read cache file: %v", err)
-	}
-
-	var cached CachedVersions
-	if err := json.Unmarshal(data, &cached); err != nil {
-		t.Fatalf("Failed to parse cache file: %v", err)
-	}
-
-	if cached.Versions.Armoctl != "v1.0.0" {
-		t.Errorf("Armoctl = %v, want v1.0.0", cached.Versions.Armoctl)
+		t.Error("cache path is not a directory")
 	}
 }

@@ -1,14 +1,9 @@
 package version
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 
-	"github.com/spf13/viper"
 	"golang.org/x/mod/semver"
 )
 
@@ -16,14 +11,8 @@ const (
 	// DistributionURL is the CloudFront URL for armoctl binary distribution.
 	DistributionURL = "https://package-distribution.armosec.io/armoctl"
 
-	// SensorsVersionPath is the API path for fetching sensor versions.
-	SensorsVersionPath = "/api/v1/sensors/version"
-
 	// FetchTimeout is the timeout for fetching version info.
 	FetchTimeout = 5 * time.Second
-
-	// MaxResponseSize is the maximum size of the response (1MB).
-	MaxResponseSize = 1024 * 1024
 
 	// DefaultAgentImageRepo is the ECR repository for the ptrace agent image.
 	// The %s placeholder is for the tag/version.
@@ -37,7 +26,13 @@ const (
 	FallbackTag = "latest"
 )
 
-// Versions holds the latest versions of all components.
+// Versions holds component version strings cached on disk for the ECS
+// image helpers (GetAgentImage / GetOperatorImage). The fetch flow that
+// used to populate this struct from the cadashboardbe API has been
+// removed — armoctl's own update check now reads from the binary
+// distribution CDN directly. The struct itself is preserved so the
+// existing on-disk cache file can still be read by ECS callers, which
+// fall back to FallbackTag when no cached value is available.
 type Versions struct {
 	HostAgent   string `json:"hostAgent"`
 	NodeAgent   string `json:"nodeAgent"`
@@ -47,81 +42,6 @@ type Versions struct {
 	PtraceAgent string `json:"ptraceAgent"`
 }
 
-// FetchLatest fetches the latest version information from the backend API.
-func FetchLatest() (*Versions, error) {
-	return FetchLatestWithContext(context.Background())
-}
-
-// resolveVersionHost picks the host /api/v1/sensors/version is served from.
-//
-// The endpoint lives on the agent-bridge API host (api.armosec.io) — it
-// used to also be served from the dashboard host (cloud.armosec.io) but
-// that route now falls through to the Angular SPA and returns HTML,
-// breaking 'armoctl update' for everyone with the default config. Prefer
-// api-base-url; fall back to api-url only when api-base-url is empty (so
-// historical configs that only set api-url still resolve a host).
-func resolveVersionHost(apiBaseURL, apiURL string) string {
-	if apiBaseURL != "" {
-		return apiBaseURL
-	}
-	if apiURL != "" {
-		return apiURL
-	}
-	return "api.armosec.io"
-}
-
-// FetchLatestWithContext fetches the latest version information with context support.
-func FetchLatestWithContext(ctx context.Context) (*Versions, error) {
-	host := resolveVersionHost(viper.GetString("api-base-url"), viper.GetString("api-url"))
-	url := fmt.Sprintf("https://%s%s", host, SensorsVersionPath)
-	return FetchLatestFromURL(ctx, url)
-}
-
-// FetchLatestFromURL fetches version information from a specific URL.
-// This is useful for testing with mock servers.
-func FetchLatestFromURL(ctx context.Context, url string) (*Versions, error) {
-	client := &http.Client{Timeout: FetchTimeout}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	// Add authentication headers
-	if accessKey := viper.GetString("access-key"); accessKey != "" {
-		req.Header.Set("x-api-key", accessKey)
-	}
-	if customerGUID := viper.GetString("customer-guid"); customerGUID != "" {
-		q := req.URL.Query()
-		q.Set("customerGUID", customerGUID)
-		req.URL.RawQuery = q.Encode()
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetching version info: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	// Limit response size to prevent OOM from malicious servers
-	limitedReader := io.LimitReader(resp.Body, MaxResponseSize)
-	body, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-
-	var versions Versions
-	if err := json.Unmarshal(body, &versions); err != nil {
-		return nil, fmt.Errorf("parsing version info: %w", err)
-	}
-
-	return &versions, nil
-}
-
 // UpdateInfo contains information about available updates.
 type UpdateInfo struct {
 	ArmoCtlCurrent string
@@ -129,19 +49,18 @@ type UpdateInfo struct {
 	HasUpdate      bool
 }
 
-// CheckForUpdates compares the current version against the latest.
-func CheckForUpdates(currentVersion string, latest *Versions) *UpdateInfo {
-	// Handle nil latest gracefully
-	if latest == nil {
-		return &UpdateInfo{
-			ArmoCtlCurrent: currentVersion,
-			HasUpdate:      false,
-		}
-	}
-
+// CheckForUpdates compares the current armoctl version against the
+// latest version string fetched from the CDN. Empty latest means the
+// fetch failed and we have nothing to compare against — callers see
+// HasUpdate=false and decide whether to surface a banner.
+func CheckForUpdates(currentVersion, latestVersion string) *UpdateInfo {
 	info := &UpdateInfo{
 		ArmoCtlCurrent: currentVersion,
-		ArmoCtlLatest:  latest.Armoctl,
+		ArmoCtlLatest:  latestVersion,
+	}
+
+	if latestVersion == "" {
+		return info
 	}
 
 	// Skip update check for dev builds
@@ -150,15 +69,13 @@ func CheckForUpdates(currentVersion string, latest *Versions) *UpdateInfo {
 	}
 
 	// Use proper semver comparison
-	if semver.IsValid(currentVersion) && semver.IsValid(latest.Armoctl) {
-		if semver.Compare(currentVersion, latest.Armoctl) < 0 {
+	if semver.IsValid(currentVersion) && semver.IsValid(latestVersion) {
+		if semver.Compare(currentVersion, latestVersion) < 0 {
 			info.HasUpdate = true
 		}
-	} else {
+	} else if currentVersion != latestVersion {
 		// Fallback to string comparison if versions are not valid semver
-		if currentVersion != latest.Armoctl {
-			info.HasUpdate = true
-		}
+		info.HasUpdate = true
 	}
 
 	return info
