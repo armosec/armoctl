@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/mod/semver"
 )
 
 // ArmoctlLatestURL is the canonical CDN location of the latest armoctl
@@ -76,10 +78,12 @@ func FetchLatestArmoctlFrom(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("reading response: %w", err)
 	}
 	v := strings.TrimSpace(string(body))
-	// Reject HTML responses (CDN error pages, SPA fall-throughs) so a
-	// misconfigured edge doesn't get parsed as a version string.
-	if v == "" || strings.ContainsAny(v, "<>") {
-		return "", fmt.Errorf("unexpected response body: %q", v)
+	// Strict validation: must be a semver tag (vMAJOR.MINOR.PATCH …).
+	// This rejects all CDN misbehaviour at once — HTML error pages,
+	// XML/JSON error documents, accidental redirects, BOMs — instead
+	// of trying to enumerate every shape of bad response.
+	if !semver.IsValid(v) {
+		return "", fmt.Errorf("unexpected response body (not a valid semver tag): %q", v)
 	}
 	return v, nil
 }
@@ -126,9 +130,18 @@ func saveArmoctlCache(version string) error {
 // GetLatestArmoctl returns the latest armoctl version, using the
 // on-disk cache if it is fresher than CacheTTL. On fetch failure with
 // a stale cache present, the stale value is returned so the update
-// banner keeps working offline — same fallback behaviour as
-// GetLatestVersions for the multi-agent path.
+// banner keeps working offline.
 func GetLatestArmoctl() (string, error) {
+	return getLatestArmoctlWith(func(ctx context.Context) (string, error) {
+		return FetchLatestArmoctl(ctx)
+	})
+}
+
+// getLatestArmoctlWith is the testable core of GetLatestArmoctl. It
+// takes the fetch step as a function so tests can inject a stub that
+// fails (to exercise the stale-fallback path) or returns a known
+// value (to exercise the success path) without dialling the real CDN.
+func getLatestArmoctlWith(fetch func(context.Context) (string, error)) (string, error) {
 	cached := loadArmoctlCache()
 	if cached != nil && time.Since(cached.FetchedAt) <= CacheTTL {
 		return cached.Version, nil
@@ -137,7 +150,7 @@ func GetLatestArmoctl() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), FetchTimeout)
 	defer cancel()
 
-	v, err := FetchLatestArmoctl(ctx)
+	v, err := fetch(ctx)
 	if err != nil {
 		if cached != nil {
 			return cached.Version, nil

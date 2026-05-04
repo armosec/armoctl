@@ -51,9 +51,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	cmd.Printf("Binary location: %s\n", execPath)
 	cmd.Println()
 
-	// Perform the update
+	// Perform the update. Pass the resolved version so SelfUpdate
+	// downloads from the version-pinned release path; otherwise we
+	// race CloudFront's invalidation of the floating armoctl_latest_*
+	// alias and could "successfully update" to last release's binary.
 	cmd.Println("Downloading update...")
-	if err := versionpkg.SelfUpdate(); err != nil {
+	if err := versionpkg.SelfUpdate(latest); err != nil {
 		return fmt.Errorf("updating: %w", err)
 	}
 

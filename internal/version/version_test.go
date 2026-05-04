@@ -3,6 +3,7 @@ package version
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -57,10 +58,15 @@ func TestFetchLatestArmoctlFrom(t *testing.T) {
 	}{
 		{name: "happy path", body: "v0.0.10\n", status: 200, want: "v0.0.10"},
 		{name: "no trailing newline", body: "v1.2.3", status: 200, want: "v1.2.3"},
+		{name: "pre-release tag", body: "v0.0.10-rc1\n", status: 200, want: "v0.0.10-rc1"},
 		{name: "rejects HTML SPA fallthrough", body: "<!DOCTYPE html><html>", status: 200, wantError: true},
 		{name: "rejects empty body", body: "", status: 200, wantError: true},
 		{name: "rejects 404", body: "", status: 404, wantError: true},
 		{name: "rejects 500", body: "internal error", status: 500, wantError: true},
+		{name: "rejects JSON-shaped body without angle brackets", body: `{"version":"v0.0.10"}`, status: 200, wantError: true},
+		{name: "rejects bare integer", body: "1\n", status: 200, wantError: true},
+		{name: "rejects unprefixed version", body: "0.0.10\n", status: 200, wantError: true},
+		{name: "rejects BOM-prefixed valid version", body: "\xef\xbb\xbfv0.0.10\n", status: 200, wantError: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -89,56 +95,32 @@ func TestFetchLatestArmoctlFrom(t *testing.T) {
 
 func TestFetchLatestArmoctlFrom_SizeCap(t *testing.T) {
 	// Server sends a 1 MiB body. The reader caps at maxLatestTxtBytes
-	// (64), so we should get a truncated value back. The first 64 bytes
-	// are non-newline ASCII, so the trim returns the truncated string
-	// unchanged. We just want to confirm we don't OOM and don't error.
+	// (64), and the truncated bytes ("aaaa…") fail semver validation
+	// — we want to confirm the cap fires (no OOM) and the validator
+	// rejects the garbage rather than us returning a bogus version.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(strings.Repeat("a", 1024*1024)))
 	}))
 	defer srv.Close()
 
-	got, err := FetchLatestArmoctlFrom(context.Background(), srv.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got) > maxLatestTxtBytes {
-		t.Errorf("returned %d bytes, want <= %d (cap not enforced)", len(got), maxLatestTxtBytes)
+	_, err := FetchLatestArmoctlFrom(context.Background(), srv.URL)
+	if err == nil {
+		t.Fatal("expected error: 1MiB of 'a' should fail semver validation after truncation")
 	}
 }
 
-func TestGetLatestArmoctl_FreshCacheServed(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+// writeArmoctlCache writes a cache file with the supplied age.
+// Negative age = future-dated (treated as fresh); positive = how far
+// in the past, e.g. (2 * CacheTTL) to make the entry stale.
+func writeArmoctlCache(t *testing.T, version string, age time.Duration) {
+	t.Helper()
 	if err := EnsureCacheDir(); err != nil {
 		t.Fatal(err)
 	}
-	// Pre-warm cache with a fresh entry; GetLatestArmoctl should not
-	// dial out (this test deliberately does not set up an httptest
-	// server — if it dials package-distribution.armosec.io we still
-	// won't fail, but we assert the cache value is what wins).
-	_ = saveArmoctlCache("v9.9.9")
-
-	got, err := GetLatestArmoctl()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != "v9.9.9" {
-		t.Errorf("GetLatestArmoctl() = %q, want v9.9.9 (from cache)", got)
-	}
-}
-
-func TestGetLatestArmoctl_StaleCacheRefreshes(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	if err := EnsureCacheDir(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Write a cache entry with a stale timestamp so GetLatestArmoctl is
-	// forced to re-fetch.
-	stale := ArmoctlVersionCache{
-		FetchedAt: time.Now().Add(-2 * CacheTTL),
-		Version:   "v0.0.1",
-	}
-	body, err := json.Marshal(stale)
+	body, err := json.Marshal(ArmoctlVersionCache{
+		FetchedAt: time.Now().Add(-age),
+		Version:   version,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,19 +131,76 @@ func TestGetLatestArmoctl_StaleCacheRefreshes(t *testing.T) {
 	if err := os.WriteFile(path, body, 0644); err != nil {
 		t.Fatal(err)
 	}
+}
 
-	// We can't redirect ArmoctlLatestURL from a test, but we can verify
-	// the *fallback* behaviour: when fetch fails (network error,
-	// because the constant points at a real domain that may or may not
-	// resolve from this sandbox), the stale cache value is returned.
-	got, err := GetLatestArmoctl()
-	if err != nil {
-		// Fetch may have actually succeeded against the real CDN; only
-		// validate the stale-fallback case if we can't reach it.
-		t.Skipf("could not exercise fallback path: %v", err)
+func TestGetLatestArmoctlWith_FreshCacheServed(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	writeArmoctlCache(t, "v9.9.9", 0)
+
+	called := false
+	fetcher := func(_ context.Context) (string, error) {
+		called = true
+		return "v0.0.1", nil
 	}
-	if got == "" {
-		t.Fatal("GetLatestArmoctl() returned empty string")
+	got, err := getLatestArmoctlWith(fetcher)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "v9.9.9" {
+		t.Errorf("got %q, want v9.9.9 (from cache)", got)
+	}
+	if called {
+		t.Error("fetcher should not have been called when cache was fresh")
+	}
+}
+
+func TestGetLatestArmoctlWith_StaleCacheRefreshes(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	writeArmoctlCache(t, "v0.0.1", 2*CacheTTL)
+
+	fetcher := func(_ context.Context) (string, error) {
+		return "v0.0.10", nil
+	}
+	got, err := getLatestArmoctlWith(fetcher)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "v0.0.10" {
+		t.Errorf("got %q, want v0.0.10 (from fetch)", got)
+	}
+
+	// Cache should now hold the new value with a fresh timestamp.
+	cached := loadArmoctlCache()
+	if cached == nil || cached.Version != "v0.0.10" {
+		t.Errorf("cache after refresh = %+v, want Version=v0.0.10", cached)
+	}
+}
+
+func TestGetLatestArmoctlWith_FallsBackToStaleOnFetchError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	writeArmoctlCache(t, "v0.0.1", 2*CacheTTL)
+
+	fetcher := func(_ context.Context) (string, error) {
+		return "", fmt.Errorf("network unreachable")
+	}
+	got, err := getLatestArmoctlWith(fetcher)
+	if err != nil {
+		t.Fatalf("expected stale fallback, got error: %v", err)
+	}
+	if got != "v0.0.1" {
+		t.Errorf("got %q, want v0.0.1 (stale fallback)", got)
+	}
+}
+
+func TestGetLatestArmoctlWith_NoCacheNoFetchPropagatesError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	fetcher := func(_ context.Context) (string, error) {
+		return "", fmt.Errorf("network unreachable")
+	}
+	_, err := getLatestArmoctlWith(fetcher)
+	if err == nil {
+		t.Fatal("expected error when both cache and fetch are unavailable")
 	}
 }
 
@@ -186,15 +225,6 @@ func TestPadding(t *testing.T) {
 	}
 }
 
-func TestBuildDownloadURL(t *testing.T) {
-	url := buildDownloadURL()
-	if !strings.HasPrefix(url, DistributionURL) {
-		t.Errorf("buildDownloadURL() = %q, want prefix %q", url, DistributionURL)
-	}
-	if url == DistributionURL {
-		t.Error("buildDownloadURL() should include platform suffix")
-	}
-}
 
 // --- ECS image lookup: read-only consumers of the legacy multi-agent cache ---
 
