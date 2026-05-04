@@ -27,6 +27,13 @@ jobs:
               with:
                   fetch-depth: 0
 
+            - uses: actions/setup-go@v5
+              with:
+                  go-version: "1.26.0"
+
+            - name: Verify generated skill docs are fresh
+              run: make verify-skill-docs
+
             - name: Get next version
               id: version
               run: |
@@ -42,12 +49,29 @@ jobs:
                   echo "tag=${NEXT_TAG}" >> $GITHUB_OUTPUT
                   echo "Next version: ${NEXT_TAG}"
 
+            - name: Bump plugin manifests to ${{ steps.version.outputs.tag }}
+              run: |
+                  NEW="${{ steps.version.outputs.tag }}"
+                  # Strip leading 'v' if present
+                  NEW="${NEW#v}"
+                  jq --arg v "$NEW" '.version = $v' .claude-plugin/plugin.json > .claude-plugin/plugin.json.tmp
+                  mv .claude-plugin/plugin.json.tmp .claude-plugin/plugin.json
+                  jq --arg v "$NEW" '(.plugins[] | select(.name=="armoctl") | .version) = $v' .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp
+                  mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
+                  jq --arg v "$NEW" '.version = $v' gemini-extension.json > gemini-extension.json.tmp
+                  mv gemini-extension.json.tmp gemini-extension.json
+                  if git diff --quiet -- .claude-plugin/ gemini-extension.json; then
+                    echo "No manifest changes needed"
+                  else
+                    git config user.name "armo-release-bot"
+                    git config user.email "release@armosec.io"
+                    git add .claude-plugin/plugin.json .claude-plugin/marketplace.json gemini-extension.json
+                    git commit -m "chore: bump plugin manifests to v$NEW"
+                    git push
+                  fi
+
             - name: Create Git Tag
               run: git tag "${{ steps.version.outputs.tag }}"
-
-            - uses: actions/setup-go@v5
-              with:
-                  go-version: "1.26.0"
 
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v6

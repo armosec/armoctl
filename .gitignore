@@ -32,6 +32,7 @@ Thumbs.db
 # Build output
 /dist/
 /bin/
+/gen-skill-docs
 
 # Environment
 .env

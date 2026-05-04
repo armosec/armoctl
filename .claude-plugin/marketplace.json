@@ -1,0 +1,20 @@
+{
+  "name": "armosec",
+  "description": "ARMO official Claude plugin marketplace",
+  "owner": {
+    "name": "ARMO",
+    "email": "support@armosec.io"
+  },
+  "plugins": [
+    {
+      "name": "armoctl",
+      "description": "ARMO security platform CLI as a Claude skill",
+      "version": "0.0.7",
+      "source": "./",
+      "author": {
+        "name": "ARMO",
+        "email": "support@armosec.io"
+      }
+    }
+  ]
+}

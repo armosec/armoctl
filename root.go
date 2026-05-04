@@ -9,22 +9,8 @@ import (
 	"github.com/spf13/viper"
 
 	ecscmd "github.com/armosec/armoctl/ecs"
-	"github.com/armosec/armoctl/cmd/cliclient"
-	"github.com/armosec/armoctl/cmd/cliflags"
-	attackchainscmd "github.com/armosec/armoctl/cmd/attackchains"
-	cloudaccountscmd "github.com/armosec/armoctl/cmd/cloudaccounts"
-	incidentscmd "github.com/armosec/armoctl/cmd/incidents"
-	integrationscmd "github.com/armosec/armoctl/cmd/integrations"
-	inventorycmd "github.com/armosec/armoctl/cmd/inventory"
-	networkpoliciescmd "github.com/armosec/armoctl/cmd/networkpolicies"
-	posturecmd "github.com/armosec/armoctl/cmd/posture"
-	repoposturecmd "github.com/armosec/armoctl/cmd/repoposture"
-	riskscmd "github.com/armosec/armoctl/cmd/risks"
-	runtimepoliciescmd "github.com/armosec/armoctl/cmd/runtimepolicies"
-	runtimerulescmd "github.com/armosec/armoctl/cmd/runtimerules"
-	seccompcmd "github.com/armosec/armoctl/cmd/seccomp"
-	vulnscmd "github.com/armosec/armoctl/cmd/vulns"
 	"github.com/armosec/armoctl/internal/config"
+	"github.com/armosec/armoctl/internal/rootcmd"
 	schemacmd "github.com/armosec/armoctl/internal/schema"
 	versionpkg "github.com/armosec/armoctl/internal/version"
 )
@@ -55,20 +41,17 @@ func init() {
 	rootCmd.AddCommand(ecscmd.EcsCmd)
 	rootCmd.AddCommand(configureCmd)
 
-	cliflags.Register(rootCmd)
-	rootCmd.AddCommand(incidentscmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(vulnscmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(posturecmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(riskscmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(attackchainscmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(inventorycmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(networkpoliciescmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(seccompcmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(cloudaccountscmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(runtimerulescmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(runtimepoliciescmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(integrationscmd.Cmd(cliclient.Default(viper.GetString)))
-	rootCmd.AddCommand(repoposturecmd.Cmd(cliclient.Default(viper.GetString)))
+	// We copy the factory's children + persistent flags onto our existing rootCmd
+	// rather than using the factory's root directly, because rootCmd already has
+	// PersistentPreRun/PersistentPostRun and the version-check hooks wired up.
+	// Anything attached to the factory's root other than children and persistent
+	// flags will NOT carry over — keep the factory minimal.
+	built := rootcmd.NewRootCmd()
+	for _, sub := range built.Commands() {
+		rootCmd.AddCommand(sub)
+	}
+	rootCmd.PersistentFlags().AddFlagSet(built.PersistentFlags())
+
 	rootCmd.AddCommand(schemacmd.Cmd())
 
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode")

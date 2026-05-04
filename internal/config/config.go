@@ -82,7 +82,11 @@ func PromptAllCredentials() error {
 	key := viper.GetString("access-key")
 	apiURL := viper.GetString("api-url")
 
-	_, _ = fmt.Fprintf(os.Stderr, "You can find your credentials at https://%s → Settings → Access Keys\n\n", apiURL)
+	_, _ = fmt.Fprintln(os.Stderr, "Where to find your credentials:")
+	_, _ = fmt.Fprintln(os.Stderr, "  • Customer GUID: ARMO Platform UI → top-right account dropdown")
+	_, _ = fmt.Fprintln(os.Stderr, "  • Access Key:    https://cloud.armosec.io/settings/workspace/agent-access-keys")
+	_, _ = fmt.Fprintln(os.Stderr, "                   (or https://cloud.us.armosec.io/... for US tenants)")
+	_, _ = fmt.Fprintln(os.Stderr, "")
 
 	form := huh.NewForm(
 		huh.NewGroup(

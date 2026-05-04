@@ -13,3 +13,18 @@ armoctl:
 .PHONY: schemas
 schemas:
 	./scripts/gen-schemas.sh
+
+.PHONY: skill-docs verify-skill-docs
+
+# Regenerate per-cluster skill markdown files.
+skill-docs:
+	go run ./cmd/gen-skill-docs
+
+# CI gate — fail if generated skills are stale relative to source.
+verify-skill-docs:
+	@$(MAKE) skill-docs
+	@if ! git diff --quiet -- skills/; then \
+		echo "ERROR: skills/ is stale. Run 'make skill-docs' and commit the result."; \
+		git --no-pager diff -- skills/; \
+		exit 1; \
+	fi
