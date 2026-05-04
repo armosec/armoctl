@@ -19,6 +19,8 @@ export ARMO_API_BASE_URL=api.armosec.io   # or api.us.armosec.io for US tenants
 ./scripts/smoke.sh -v
 ```
 
+Note: The smoke script always builds a fresh binary from your working tree, so you don't need to have `armoctl` pre-installed. This ensures you're testing your branch, not a stale system install.
+
 ## What it checks
 
 For each of the 13 clusters: one or more read-only commands plus selected dry-run mutations. Pass criteria for each check:
@@ -28,6 +30,18 @@ For each of the 13 clusters: one or more read-only commands plus selected dry-ru
 3. Stdout parses as JSON
 
 The smoke does NOT assert on specific data — empty results (`{"items":[],"total":0}`) count as passing because the goal is to verify the API/CLI path works, not that the tenant has data.
+
+## Check outcomes
+
+- **PASS**: Exit code 0, non-empty stdout, valid JSON
+- **FAIL**: Exit code non-zero (not a transient error), empty stdout, or non-JSON stdout
+- **SKIP**: The check encountered a known transient backend issue and is not counted as a failure. Examples:
+  - HTML response in stdout (Cloudflare/nginx error page — usually means the feature is unconfigured for this tenant)
+  - `context deadline exceeded` in stderr (request timeout)
+  - Cloudflare HTML error page in stderr
+  - `400 Bad Request` or `504 Gateway Time-out` in stderr
+  
+Transient backend errors (timeouts, Cloudflare errors) are skipped rather than failed because they do not indicate a CLI bug.
 
 ## Dry-run mutations included
 

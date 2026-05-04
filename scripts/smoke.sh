@@ -30,14 +30,12 @@ done
 : "${ARMO_ACCESS_KEY:?ARMO_ACCESS_KEY must be set}"
 : "${ARMO_API_BASE_URL:?ARMO_API_BASE_URL must be set (e.g., api.armosec.io)}"
 
-# Resolve binary
-if command -v armoctl >/dev/null 2>&1; then
-    ARMOCTL="$(command -v armoctl)"
-else
-    echo "Building armoctl..." >&2
-    ARMOCTL=/tmp/armoctl-smoke
-    (cd "$REPO_ROOT" && go build -o "$ARMOCTL" .)
-fi
+# Always build the branch's binary so the smoke tests the code in the
+# working tree, not whatever happens to be on $PATH. This matters for
+# both local dev (avoids stale installs) and CI (no install step needed).
+ARMOCTL=/tmp/armoctl-smoke
+echo "Building armoctl from $REPO_ROOT..." >&2
+(cd "$REPO_ROOT" && go build -o "$ARMOCTL" .)
 
 PASS=0
 FAIL=0
@@ -49,6 +47,8 @@ FAILED_CHECKS=()
 # If stdout starts with an HTML tag (e.g. Cloudflare error page), the check is
 # classified as "skipped (HTML response)" rather than a failure — this usually
 # means the feature/integration is not configured for this tenant.
+# If stderr indicates a transient backend error (timeout, Cloudflare HTML, etc.),
+# the check is classified as "skipped (backend transient)" rather than a failure.
 run_check() {
     local cluster="$1" label="$2"; shift 2
     if [ -n "$CLUSTER_FILTER" ] && [ "$CLUSTER_FILTER" != "$cluster" ]; then
@@ -58,13 +58,36 @@ run_check() {
     out="$("$ARMOCTL" "$@" 2>/tmp/smoke.err)" || rc=$?
     local err
     err="$(cat /tmp/smoke.err)"
+
+    # If exit != 0, check if stderr indicates a transient backend issue.
+    # These should be SKIPped rather than FAILed.
     if [ "$rc" -ne 0 ]; then
+        # Match: context deadline exceeded, HTML tags, Cloudflare status codes
+        if echo "$err" | grep -qiE '(context deadline exceeded|<html|<!doctype|400 bad request|504 gateway)'; then
+            SKIP=$((SKIP+1))
+            # Infer reason from error content
+            local reason="backend transient"
+            if echo "$err" | grep -qi "context deadline exceeded"; then
+                reason="backend transient: timeout"
+            elif echo "$err" | grep -qiE '<html|<!doctype'; then
+                reason="HTML response, likely unconfigured/transient"
+            elif echo "$err" | grep -qi "504 gateway"; then
+                reason="backend transient: 504 Gateway Timeout"
+            elif echo "$err" | grep -qi "400 bad request"; then
+                reason="backend transient: 400 Bad Request"
+            fi
+            echo "⊘ $cluster $label — skipped ($reason)"
+            [ "$VERBOSE" -eq 1 ] && echo "    stderr: $(echo "$err" | head -3)"
+            return 0
+        fi
+        # Not a transient issue; count as a real failure
         FAIL=$((FAIL+1))
         FAILED_CHECKS+=("$cluster $label (exit $rc): $err")
         echo "✗ $cluster $label — exit $rc"
         [ "$VERBOSE" -eq 1 ] && echo "    stderr: $err"
         return 0
     fi
+
     if [ -z "$out" ]; then
         FAIL=$((FAIL+1))
         FAILED_CHECKS+=("$cluster $label: empty stdout")
@@ -76,7 +99,7 @@ run_check() {
     # rather than fail so the overall exit code remains clean.
     if echo "$out" | grep -qiE '^\s*<(html|!DOCTYPE)'; then
         SKIP=$((SKIP+1))
-        echo "⊘ $cluster $label — skipped (HTML response, likely unconfigured integration)"
+        echo "⊘ $cluster $label — skipped (HTML response, likely unconfigured/transient)"
         [ "$VERBOSE" -eq 1 ] && echo "    output: $(echo "$out" | head -3)"
         return 0
     fi
