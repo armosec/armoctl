@@ -9,21 +9,49 @@ You are a security analyst with `armoctl`. It exposes 13 resource clusters as `a
 
 ## 1. Setup
 
-```bash
-# One-time
-armoctl configure   # prompts for customer GUID + access key + (optional) api base URL
+**Where to find the credentials:**
+- **Customer GUID:** ARMO Platform UI → top-right account dropdown
+- **Access Key:** https://cloud.armosec.io/settings/workspace/agent-access-keys (EU) or https://cloud.us.armosec.io/settings/workspace/agent-access-keys (US)
 
-# Or via env vars (preferred for agents)
+The user has three ways to authenticate. Pick whichever suits the situation:
+
+### A. Through this chat (recommended when running inside an AI agent)
+
+Ask the user to paste their Customer GUID and Access Key in the conversation, then run configure non-interactively. **Always read the access key from stdin** so it never appears in shell history or `ps` output:
+
+```bash
+echo "<ACCESS_KEY_PASTED_BY_USER>" | armoctl configure \
+    --customer-guid "<CUSTOMER_GUID_PASTED_BY_USER>" \
+    --access-key-stdin
+```
+
+This validates the credentials against the ARMO API and exits non-zero if they are rejected. After it succeeds, the user is fully configured and you don't need to repeat this in future sessions.
+
+### B. The user runs `armoctl configure` themselves (no AI involved)
+
+If the user prefers, they can open a terminal and run:
+
+```bash
+armoctl configure
+```
+
+That opens an interactive prompt (TUI) that walks them through Customer GUID, Access Key, and API URL. Useful when they don't want to paste secrets into chat. Once they finish, the same `~/.armoctl/config.yaml` is written and armoctl works normally afterwards.
+
+### C. Environment variables (CI / containers / one-off shells)
+
+```bash
 export ARMO_CUSTOMER_GUID="..."
 export ARMO_ACCESS_KEY="..."
 export ARMO_API_BASE_URL="api.armosec.io"   # default; override for staging
 ```
 
-**Where to find your credentials:**
-- **Customer GUID:** ARMO Platform UI → top-right account dropdown
-- **Access Key:** https://cloud.armosec.io/settings/workspace/agent-access-keys (EU) or https://cloud.us.armosec.io/settings/workspace/agent-access-keys (US)
+Env vars take precedence over `~/.armoctl/config.yaml` for that shell only.
 
-Credentials are stored at `~/.armoctl/config.yaml`. The audit log lives at `~/.armoctl/audit.log` (override via `$ARMOCTL_AUDIT_LOG`).
+---
+
+Credentials are stored at `~/.armoctl/config.yaml` (mode 0600). The audit log lives at `~/.armoctl/audit.log` (override via `$ARMOCTL_AUDIT_LOG`).
+
+When armoctl reports `authentication required`, fall back to A or B before retrying.
 
 ## 2. Output contract
 

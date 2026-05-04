@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,14 +30,84 @@ var rootCmd = &cobra.Command{
 var configureCmd = &cobra.Command{
 	Use:   "configure",
 	Short: "Configure ARMO credentials",
-	Long:  "Interactively set your Customer GUID and Access Key. Credentials are saved to ~/.armoctl/config.yaml.",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	Long: `Set your Customer GUID and Access Key. Credentials are saved to ~/.armoctl/config.yaml.
+
+By default 'configure' opens an interactive prompt. If any of the
+--customer-guid, --access-key, --access-key-stdin, --api-base-url, or
+--api-url flags is supplied, configure runs non-interactively and
+treats a failed authentication ping as an error.
+
+For scripts and AI-driven setup, prefer --access-key-stdin over
+--access-key so the secret never appears in shell history or
+'ps' output:
+
+  echo "$ARMO_ACCESS_KEY" | armoctl configure \
+      --customer-guid "$ARMO_CUSTOMER_GUID" \
+      --access-key-stdin
+
+Hosts:
+  --api-base-url is the agent-bridge API host (default api.armosec.io)
+  used by every armoctl skill cluster: incidents, vulns, posture,
+  risks, runtime, network, etc. Override on non-default tenants
+  (e.g. api.us.armosec.io, api-dev.armosec.io).
+
+  --api-url is the legacy backend host (default cloud.armosec.io)
+  used by the ECS operator install and the version-check. Override
+  this if you run ECS commands against a non-default tenant
+  (e.g. cloud.us.armosec.io, cloud-dev.armosec.io). On production
+  the two hosts share a region prefix (api.us / cloud.us); on dev
+  they do not (api-dev / cloud-dev). Skill-only users do not need
+  to set --api-url.`,
+	RunE: runConfigure,
+}
+
+func runConfigure(cmd *cobra.Command, _ []string) error {
+	flagsUsed := false
+	for _, name := range []string{"customer-guid", "access-key", "access-key-stdin", "api-base-url", "api-url"} {
+		if cmd.Flags().Changed(name) {
+			flagsUsed = true
+			break
+		}
+	}
+	if !flagsUsed {
 		return config.PromptAllCredentials()
-	},
+	}
+
+	guid, _ := cmd.Flags().GetString("customer-guid")
+	key, _ := cmd.Flags().GetString("access-key")
+	apiBase, _ := cmd.Flags().GetString("api-base-url")
+	apiURL, _ := cmd.Flags().GetString("api-url")
+
+	if stdinFlag, _ := cmd.Flags().GetBool("access-key-stdin"); stdinFlag {
+		if key != "" {
+			return fmt.Errorf("--access-key and --access-key-stdin are mutually exclusive")
+		}
+		k, err := config.ReadAccessKeyFromStdin(cmd.InOrStdin())
+		if err != nil {
+			return err
+		}
+		if k == "" {
+			return fmt.Errorf("--access-key-stdin: no value read from stdin")
+		}
+		key = k
+	}
+
+	return config.SaveCredentials(config.Credentials{
+		CustomerGUID: guid,
+		AccessKey:    key,
+		APIBaseURL:   apiBase,
+		APIURL:       apiURL,
+	}, true)
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	configureCmd.Flags().String("customer-guid", "", "ARMO Customer GUID")
+	configureCmd.Flags().String("access-key", "", "ARMO Access Key (avoid in shell history; prefer --access-key-stdin)")
+	configureCmd.Flags().Bool("access-key-stdin", false, "Read the access key from stdin (recommended for scripts/AI agents)")
+	configureCmd.Flags().String("api-base-url", "", "Agent-bridge API host — used by every armoctl skill cluster (default api.armosec.io)")
+	configureCmd.Flags().String("api-url", "", "Legacy backend host — used by ECS operator install and the version-check (default cloud.armosec.io)")
 
 	rootCmd.AddCommand(ecscmd.EcsCmd)
 	rootCmd.AddCommand(configureCmd)
