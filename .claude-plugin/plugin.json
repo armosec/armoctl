@@ -10,7 +10,15 @@
   "homepage": "https://github.com/armosec/armoctl",
   "repository": "https://github.com/armosec/armoctl",
   "license": "Apache-2.0",
-  "keywords": ["security", "kubernetes", "cli", "ecs", "armo", "vulnerabilities", "posture"],
+  "keywords": [
+    "security",
+    "kubernetes",
+    "cli",
+    "ecs",
+    "armo",
+    "vulnerabilities",
+    "posture"
+  ],
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json"
 }
