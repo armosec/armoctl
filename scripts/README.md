@@ -39,9 +39,9 @@ The smoke does NOT assert on specific data — empty results (`{"items":[],"tota
   - HTML response in stdout (Cloudflare/nginx error page — usually means the feature is unconfigured for this tenant)
   - `context deadline exceeded` in stderr (request timeout)
   - Cloudflare HTML error page in stderr
-  - `400 Bad Request` or `504 Gateway Time-out` in stderr
-  
-Transient backend errors (timeouts, Cloudflare errors) are skipped rather than failed because they do not indicate a CLI bug.
+  - `504 Gateway Time-out` in stderr
+
+Transient backend errors (timeouts, Cloudflare/504 errors) are skipped rather than failed because they do not indicate a CLI bug. **400 Bad Request is treated as a real failure** since it may indicate invalid request construction in the CLI.
 
 ## Dry-run mutations included
 
@@ -49,18 +49,16 @@ Each mutation is exercised with `--dry-run` so no real data is written. The pass
 
 | Cluster | Command |
 |---------|---------|
-| vulns | `vulns exceptions create --dry-run --name smoke-test-exception --cve CVE-0000-00000` |
-| posture | `posture exceptions create --dry-run --name smoke-test-exception --control C-0001` |
-| risks | `risks exceptions create --dry-run --name smoke-test-exception` |
-| runtime-rules | `runtime-rules create --dry-run --name smoke-test-rule` |
+| vulns | `vulns exceptions create --dry-run --name smoke-test-exception --cve CVE-0000-00000 --cluster smoke-test-not-real` |
+| posture | `posture exceptions create --dry-run --name smoke-test-exception --control C-0001 --cluster smoke-test-not-real` |
+| risks | `risks exceptions create --dry-run --risk-id R-0001 --reason 'smoke test' --cluster smoke-test-not-real` |
 | runtime-policies | `runtime-policies create --dry-run --name smoke-test-policy` |
 
 ## What it doesn't check
 
 - Mutations against the live API (no risk of accidental data changes)
 - Commands that require resource-specific GUIDs (e.g. `incidents alerts <guid>`, `repo-posture failed-controls --report-guid <guid>`)
-- `integrations alert-channels` and `integrations siem`: these clusters have no list subcommand (only `create`), so they are intentionally excluded from the read-only sweep
-- Jira integration: `integrations jira projects` runs but a missing Jira connection counts as a failure; if your tenant doesn't use Jira, expect 1 failure (or filter it out with `-c` to skip integrations entirely)
+- The entire `integrations` cluster: all write-side surfaces (`alert-channels`, `siem` have no `list`; `jira projects` is tenant-dependent). The smoke test deliberately skips integrations; mutations would require real downstream targets.
 - `repo-posture resources`, `repo-posture files`, `repo-posture failed-controls`: these require a `--report-guid` not available without a connected repo
 
 ## CI integration

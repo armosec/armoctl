@@ -7,10 +7,11 @@
 # - Never blocks session start: prints actionable output and exits 0
 #   on failure paths.
 
-set -e
-
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-PLUGIN_VERSION="$(jq -r .version "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
+PLUGIN_VERSION="$(jq -r .version "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null)" || {
+    echo "armoctl plugin: could not read plugin.json — skipping version check." >&2
+    exit 0
+}
 
 INSTALLED=""
 if command -v armoctl >/dev/null 2>&1; then

@@ -51,8 +51,8 @@ Each `list` returns a curated **summary projection** by default â€” typically 8â
 | Flag | Effect |
 |---|---|
 | `--full` | Return the raw API response (every field). |
-| `--fields a,b,c.d` | Keep only these dotted paths. |
-| `--query '<gojq>'` | Run a gojq expression on the result before render. Wins over `--fields`. |
+| `--fields a,b,c.d` | Keep only these dotted paths. Applied before `--query`. |
+| `--query '<gojq>'` | Run a gojq expression on the (already-projected) result before render. Operates on whichever fields survive `--fields` (or all fields if `--fields` is omitted). |
 
 ### Other format flags
 

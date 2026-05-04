@@ -35,7 +35,10 @@ done
 # both local dev (avoids stale installs) and CI (no install step needed).
 ARMOCTL=/tmp/armoctl-smoke
 echo "Building armoctl from $REPO_ROOT..." >&2
-(cd "$REPO_ROOT" && go build -o "$ARMOCTL" .)
+if ! (cd "$REPO_ROOT" && go build -o "$ARMOCTL" .); then
+    echo "ERROR: go build failed — smoke test aborted." >&2
+    exit 1
+fi
 
 PASS=0
 FAIL=0
@@ -47,8 +50,10 @@ FAILED_CHECKS=()
 # If stdout starts with an HTML tag (e.g. Cloudflare error page), the check is
 # classified as "skipped (HTML response)" rather than a failure — this usually
 # means the feature/integration is not configured for this tenant.
-# If stderr indicates a transient backend error (timeout, Cloudflare HTML, etc.),
+# If stderr indicates a transient backend error (timeout, Cloudflare HTML, 504, etc.),
 # the check is classified as "skipped (backend transient)" rather than a failure.
+# NOTE: 400 Bad Request is NOT treated as transient — it may indicate a CLI bug
+# (invalid request construction) and should surface as a real failure.
 run_check() {
     local cluster="$1" label="$2"; shift 2
     if [ -n "$CLUSTER_FILTER" ] && [ "$CLUSTER_FILTER" != "$cluster" ]; then
@@ -62,8 +67,8 @@ run_check() {
     # If exit != 0, check if stderr indicates a transient backend issue.
     # These should be SKIPped rather than FAILed.
     if [ "$rc" -ne 0 ]; then
-        # Match: context deadline exceeded, HTML tags, Cloudflare status codes
-        if echo "$err" | grep -qiE '(context deadline exceeded|<html|<!doctype|400 bad request|504 gateway)'; then
+        # Match: context deadline exceeded, HTML tags, 504 gateway (transient backend only)
+        if echo "$err" | grep -qiE '(context deadline exceeded|<html|<!doctype|504 gateway)'; then
             SKIP=$((SKIP+1))
             # Infer reason from error content
             local reason="backend transient"
@@ -73,8 +78,6 @@ run_check() {
                 reason="HTML response, likely unconfigured/transient"
             elif echo "$err" | grep -qi "504 gateway"; then
                 reason="backend transient: 504 Gateway Timeout"
-            elif echo "$err" | grep -qi "400 bad request"; then
-                reason="backend transient: 400 Bad Request"
             fi
             echo "⊘ $cluster $label — skipped ($reason)"
             [ "$VERBOSE" -eq 1 ] && echo "    stderr: $(echo "$err" | head -3)"

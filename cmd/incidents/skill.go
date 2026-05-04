@@ -22,7 +22,7 @@ func init() {
 		Cheatsheet: convertCheatsheet(Cheatsheet()),
 		Recipes: []skillmeta.Recipe{
 			{
-				Title: "List Critical open incidents",
+				Title: "List Critical incidents (all statuses)",
 				Body:  "```\narmoctl incidents list --severity Critical\n```",
 			},
 			{

@@ -45,7 +45,7 @@ The incidents cluster is the live runtime-threat surface. An incident is the uni
 
 ## Recipes
 
-### List Critical open incidents
+### List Critical incidents (all statuses)
 
 ```
 armoctl incidents list --severity Critical
