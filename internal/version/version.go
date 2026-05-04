@@ -52,13 +52,28 @@ func FetchLatest() (*Versions, error) {
 	return FetchLatestWithContext(context.Background())
 }
 
+// resolveVersionHost picks the host /api/v1/sensors/version is served from.
+//
+// The endpoint lives on the agent-bridge API host (api.armosec.io) — it
+// used to also be served from the dashboard host (cloud.armosec.io) but
+// that route now falls through to the Angular SPA and returns HTML,
+// breaking 'armoctl update' for everyone with the default config. Prefer
+// api-base-url; fall back to api-url only when api-base-url is empty (so
+// historical configs that only set api-url still resolve a host).
+func resolveVersionHost(apiBaseURL, apiURL string) string {
+	if apiBaseURL != "" {
+		return apiBaseURL
+	}
+	if apiURL != "" {
+		return apiURL
+	}
+	return "api.armosec.io"
+}
+
 // FetchLatestWithContext fetches the latest version information with context support.
 func FetchLatestWithContext(ctx context.Context) (*Versions, error) {
-	apiURL := viper.GetString("api-url")
-	if apiURL == "" {
-		apiURL = "cloud.armosec.io"
-	}
-	url := fmt.Sprintf("https://%s%s", apiURL, SensorsVersionPath)
+	host := resolveVersionHost(viper.GetString("api-base-url"), viper.GetString("api-url"))
+	url := fmt.Sprintf("https://%s%s", host, SensorsVersionPath)
 	return FetchLatestFromURL(ctx, url)
 }
 

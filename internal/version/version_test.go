@@ -9,6 +9,24 @@ import (
 	"time"
 )
 
+func TestResolveVersionHost(t *testing.T) {
+	tests := []struct {
+		name, apiBaseURL, apiURL, want string
+	}{
+		{"api-base-url wins", "api-dev.armosec.io", "cloud-dev.armosec.io", "api-dev.armosec.io"},
+		{"falls back to api-url", "", "cloud-legacy.armosec.io", "cloud-legacy.armosec.io"},
+		{"default", "", "", "api.armosec.io"},
+		{"only api-base-url", "api.us.armosec.io", "", "api.us.armosec.io"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveVersionHost(tc.apiBaseURL, tc.apiURL); got != tc.want {
+				t.Errorf("resolveVersionHost(%q, %q) = %q, want %q", tc.apiBaseURL, tc.apiURL, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheckForUpdates(t *testing.T) {
 	tests := []struct {
 		name       string
