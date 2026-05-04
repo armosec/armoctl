@@ -177,13 +177,12 @@ run_check runtime-policies "list" runtime-policies list --limit 5
 run_check runtime-policies "create --dry-run" runtime-policies create --dry-run --name smoke-test-policy
 
 # integrations
-# NOTE: integrations alert-channels and integrations siem have no list subcommand —
-#       they only have "create". Skip those as read-only checks.
-#
-# jira projects — returns an HTML error page (Cloudflare 400) when Jira is not
-# configured for this tenant. The HTML-detection logic in run_check will classify
-# this as "skipped" rather than a failure.
-run_check integrations "jira projects" integrations jira projects
+# NOTE: this cluster's surface is almost entirely write-side. alert-channels and
+# siem only expose "create" (no list). jira projects exists as a read but its
+# behaviour is tenant-dependent (returns 5xx when Jira isn't connected), so it
+# tests configuration rather than CLI correctness. We deliberately leave the
+# integrations cluster without read-only smoke coverage; mutations would require
+# real downstream targets which we won't simulate in a smoke test.
 
 # cloud-accounts
 run_check cloud-accounts "ecs list" cloud-accounts ecs list
