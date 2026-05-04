@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,15 @@ import (
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/term"
 )
+
+// Credentials is the input shape for non-interactive configure.
+// Empty fields are left untouched (existing values preserved).
+type Credentials struct {
+	CustomerGUID string
+	AccessKey    string
+	APIBaseURL   string
+	APIURL       string
+}
 
 // RequireAuth checks that customer-guid and access-key are set.
 // If they are missing and stdin is a terminal, it prompts the user
@@ -109,9 +119,64 @@ func PromptAllCredentials() error {
 		return fmt.Errorf("prompting for credentials: %w", err)
 	}
 
-	viper.Set("customer-guid", guid)
-	viper.Set("access-key", key)
-	viper.Set("api-url", apiURL)
+	return applyAndSave(Credentials{
+		CustomerGUID: guid,
+		AccessKey:    key,
+		APIURL:       apiURL,
+	}, false)
+}
+
+// SaveCredentials writes the supplied credentials non-interactively.
+// Empty fields fall back to whatever is already in viper / config /
+// environment, so callers can rotate just one value (e.g. the access
+// key) without re-supplying everything.
+//
+// On completion the function pings the ARMO API. If strict is true,
+// a failed ping is returned as an error (exit non-zero); otherwise it
+// is logged as a warning and the config is still considered saved.
+// Use strict=true for non-interactive flows where nothing else will
+// surface a misconfiguration.
+func SaveCredentials(creds Credentials, strict bool) error {
+	return applyAndSave(creds, strict)
+}
+
+// ReadAccessKeyFromStdin reads a single line from r, trims trailing
+// whitespace, and returns it. Use this for the --access-key-stdin
+// flag so secrets stay out of shell history and process listings.
+func ReadAccessKeyFromStdin(r io.Reader) (string, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return "", fmt.Errorf("reading access key from stdin: %w", err)
+	}
+	// Trim only trailing newline/whitespace; preserve internal characters
+	// in the (unlikely) case the key contains them.
+	return strings.TrimRight(string(data), "\r\n \t"), nil
+}
+
+// applyAndSave merges non-empty fields of creds into viper, persists to
+// ~/.armoctl/config.yaml, and pings the API to validate the result.
+func applyAndSave(creds Credentials, strict bool) error {
+	if creds.CustomerGUID != "" {
+		viper.Set("customer-guid", creds.CustomerGUID)
+	}
+	if creds.AccessKey != "" {
+		viper.Set("access-key", creds.AccessKey)
+	}
+	if creds.APIURL != "" {
+		viper.Set("api-url", creds.APIURL)
+	}
+	if creds.APIBaseURL != "" {
+		viper.Set("api-base-url", creds.APIBaseURL)
+	}
+
+	guid := viper.GetString("customer-guid")
+	key := viper.GetString("access-key")
+	if guid == "" {
+		return fmt.Errorf("customer-guid is required")
+	}
+	if key == "" {
+		return fmt.Errorf("access-key is required")
+	}
 
 	if err := SaveConfig(); err != nil {
 		return fmt.Errorf("saving config: %w", err)
@@ -119,6 +184,9 @@ func PromptAllCredentials() error {
 
 	apiBase := viper.GetString("api-base-url")
 	if err := Whoami(context.Background(), apiBase, guid, key); err != nil {
+		if strict {
+			return fmt.Errorf("credentials saved but rejected by %s: %w", apiBase, err)
+		}
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: credentials saved but whoami ping failed: %v\n", err)
 	}
 
