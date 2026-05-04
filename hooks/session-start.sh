@@ -46,10 +46,13 @@ INSTALL_DIR="$HOME/.local/bin"
 if [ -z "$INSTALLED" ]; then
     echo "armoctl not found — installing v${PLUGIN_VERSION} into ${INSTALL_DIR}…" >&2
     mkdir -p "$INSTALL_DIR"
-    if ! curl -fsSL "$INSTALL_URL" | bash -s -- --dir "$INSTALL_DIR"; then
+    # Pin to the plugin's declared version so the binary matches what
+    # this plugin tag was tested against. Without --version, install.sh
+    # would fetch 'latest', which can drift ahead of the plugin tag.
+    if ! curl -fsSL "$INSTALL_URL" | bash -s -- --version "v${PLUGIN_VERSION#v}" --dir "$INSTALL_DIR"; then
         echo "armoctl install failed; the armoctl skill will not work this session." >&2
-        echo "Install manually: curl -fsSL $INSTALL_URL | bash -s -- --dir \"$INSTALL_DIR\"" >&2
-        emit_context "armoctl auto-install failed. The armoctl skill will not work until the binary is installed. Run: curl -fsSL $INSTALL_URL | bash -s -- --dir \"\$HOME/.local/bin\""
+        echo "Install manually: curl -fsSL $INSTALL_URL | bash -s -- --version \"v${PLUGIN_VERSION#v}\" --dir \"$INSTALL_DIR\"" >&2
+        emit_context "armoctl auto-install failed. The armoctl skill will not work until the binary is installed. Run: curl -fsSL $INSTALL_URL | bash -s -- --version \"v${PLUGIN_VERSION#v}\" --dir \"\$HOME/.local/bin\""
         exit 0
     fi
     # Warn if the install dir is not on PATH so the user can fix it.

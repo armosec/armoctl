@@ -45,22 +45,27 @@ func TestWhoami_OK(t *testing.T) {
 
 func TestReadAccessKeyFromStdin(t *testing.T) {
 	tests := []struct {
-		in, want string
+		name, in, want string
 	}{
-		{"abc", "abc"},
-		{"abc\n", "abc"},
-		{"abc\r\n", "abc"},
-		{"  abc  \n", "  abc"}, // leading whitespace preserved (not part of trim set on left)
-		{"", ""},
+		{"no_newline", "abc", "abc"},
+		{"trailing_lf", "abc\n", "abc"},
+		{"trailing_crlf", "abc\r\n", "abc"},
+		{"trailing_spaces", "  abc  \n", "  abc"}, // leading whitespace preserved
+		{"empty", "", ""},
+		// Multi-line input: only the first line is read so subsequent
+		// piped data (rare but possible) doesn't bleed into the key.
+		{"multiline_takes_first", "abc\nignored\n", "abc"},
 	}
 	for _, tc := range tests {
-		got, err := ReadAccessKeyFromStdin(strings.NewReader(tc.in))
-		if err != nil {
-			t.Fatalf("ReadAccessKeyFromStdin(%q): unexpected error %v", tc.in, err)
-		}
-		if got != tc.want {
-			t.Errorf("ReadAccessKeyFromStdin(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ReadAccessKeyFromStdin(strings.NewReader(tc.in))
+			if err != nil {
+				t.Fatalf("ReadAccessKeyFromStdin(%q): unexpected error %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Errorf("ReadAccessKeyFromStdin(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 

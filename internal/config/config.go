@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -140,17 +141,22 @@ func SaveCredentials(creds Credentials, strict bool) error {
 	return applyAndSave(creds, strict)
 }
 
-// ReadAccessKeyFromStdin reads a single line from r, trims trailing
-// whitespace, and returns it. Use this for the --access-key-stdin
-// flag so secrets stay out of shell history and process listings.
+// ReadAccessKeyFromStdin reads a single line from r and trims trailing
+// whitespace. Use this for the --access-key-stdin flag so secrets stay
+// out of shell history and process listings.
+//
+// Reads only up to the first newline (or to EOF, whichever comes first)
+// rather than slurping all of stdin, so a user who types the key on a
+// TTY and presses Enter doesn't hang waiting for Ctrl-D. The reader is
+// capped at 8 KiB to bound memory if a non-newline-terminated stream is
+// piped in.
 func ReadAccessKeyFromStdin(r io.Reader) (string, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
+	br := bufio.NewReaderSize(r, 8192)
+	line, err := br.ReadString('\n')
+	if err != nil && err != io.EOF {
 		return "", fmt.Errorf("reading access key from stdin: %w", err)
 	}
-	// Trim only trailing newline/whitespace; preserve internal characters
-	// in the (unlikely) case the key contains them.
-	return strings.TrimRight(string(data), "\r\n \t"), nil
+	return strings.TrimRight(line, "\r\n \t"), nil
 }
 
 // applyAndSave merges non-empty fields of creds into viper, persists to
