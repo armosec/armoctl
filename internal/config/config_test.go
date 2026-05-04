@@ -29,6 +29,24 @@ func TestDefaults_LeavesExistingAPIURLAlone(t *testing.T) {
 	}
 }
 
+func TestMaskAccessKey(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"a", "*"},
+		{"abcd", "****"},
+		{"abcdefgh", "********"},
+		{"abcdefghi", "abcd****fghi"},
+		{"0123456789abcdef0123", "0123****0123"},
+	}
+	for _, tc := range tests {
+		if got := maskAccessKey(tc.in); got != tc.want {
+			t.Errorf("maskAccessKey(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestWhoami_OK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "K" {
