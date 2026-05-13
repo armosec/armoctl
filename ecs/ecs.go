@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/armosec/armoctl/ecs/agent"
 	"github.com/armosec/armoctl/ecs/operator"
 	"github.com/armosec/armoctl/ecs/patcher"
 	"github.com/armosec/armoctl/internal/config"
@@ -23,6 +24,7 @@ func init() {
 	EcsCmd.PersistentFlags().String("agent-image", "", "Agent sidecar image")
 	EcsCmd.PersistentFlags().Bool("volume-fixer", false, "Include a volume-fixer init container to chmod the shared volume")
 
+	EcsCmd.AddCommand(agent.AgentCmd)
 	EcsCmd.AddCommand(operator.OperatorCmd)
 }
 
