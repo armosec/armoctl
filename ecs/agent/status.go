@@ -8,6 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/spf13/cobra"
+
+	"github.com/armosec/armoctl/ecs/clusterarn"
 )
 
 var statusCmd = &cobra.Command{
@@ -43,7 +45,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	var clusterName string
 
 	if clusterARN != "" {
-		cluster, err := parseClusterARN(clusterARN)
+		cluster, err := clusterarn.Parse(clusterARN)
 		if err != nil {
 			return fmt.Errorf("invalid cluster ARN: %w", err)
 		}

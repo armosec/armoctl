@@ -1,10 +1,6 @@
 package operator
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/spf13/cobra"
 
 	"github.com/armosec/armoctl/internal/config"
@@ -25,44 +21,6 @@ const (
 	// StackNamePrefix is the prefix for CloudFormation stack names.
 	StackNamePrefix = "armo-operator-"
 )
-
-// ClusterInfo contains parsed information from an ECS cluster ARN.
-type ClusterInfo struct {
-	ARN         string
-	Region      string
-	AccountID   string
-	ClusterName string
-}
-
-// parseClusterARN extracts region and cluster name from an ECS cluster ARN.
-// ARN format: arn:aws:ecs:<region>:<account>:cluster/<cluster-name>
-func parseClusterARN(clusterARN string) (*ClusterInfo, error) {
-	parsed, err := arn.Parse(clusterARN)
-	if err != nil {
-		return nil, fmt.Errorf("invalid ARN: %w", err)
-	}
-
-	if parsed.Service != "ecs" {
-		return nil, fmt.Errorf("expected ECS ARN, got service %q", parsed.Service)
-	}
-
-	// Resource format: "cluster/<cluster-name>"
-	if !strings.HasPrefix(parsed.Resource, "cluster/") {
-		return nil, fmt.Errorf("expected cluster ARN, got resource %q", parsed.Resource)
-	}
-
-	clusterName := strings.TrimPrefix(parsed.Resource, "cluster/")
-	if clusterName == "" {
-		return nil, fmt.Errorf("cluster name is empty in ARN")
-	}
-
-	return &ClusterInfo{
-		ARN:         clusterARN,
-		Region:      parsed.Region,
-		AccountID:   parsed.AccountID,
-		ClusterName: clusterName,
-	}, nil
-}
 
 // defaultStackName returns the default CloudFormation stack name for a cluster.
 func defaultStackName(clusterName string) string {

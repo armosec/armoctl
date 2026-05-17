@@ -5,6 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/armosec/armoctl/ecs/clusterarn"
 )
 
 var installCmd = &cobra.Command{
@@ -47,7 +49,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 	// Parse cluster ARN
 	clusterARN, _ := cmd.Flags().GetString("cluster")
-	cluster, err := parseClusterARN(clusterARN)
+	cluster, err := clusterarn.Parse(clusterARN)
 	if err != nil {
 		return fmt.Errorf("invalid cluster ARN: %w", err)
 	}

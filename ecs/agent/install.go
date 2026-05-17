@@ -2,9 +2,12 @@ package agent
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/armosec/armoctl/ecs/clusterarn"
 )
 
 var installCmd = &cobra.Command{
@@ -41,7 +44,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	clusterARN, _ := cmd.Flags().GetString("cluster")
-	cluster, err := parseClusterARN(clusterARN)
+	cluster, err := clusterarn.Parse(clusterARN)
 	if err != nil {
 		return fmt.Errorf("invalid cluster ARN: %w", err)
 	}
@@ -53,6 +56,15 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 	cloudwatchLogs, _ := cmd.Flags().GetString("cloudwatch-logs")
 	maxLearningPeriod, _ := cmd.Flags().GetString("max-learning-period")
+	if maxLearningPeriod != "" {
+		d, err := time.ParseDuration(maxLearningPeriod)
+		if err != nil {
+			return fmt.Errorf("invalid --max-learning-period %q: %w (expected Go duration like 24h, 6h, 30m)", maxLearningPeriod, err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("invalid --max-learning-period %q: must be positive", maxLearningPeriod)
+		}
+	}
 
 	params := stackParams{
 		StackName:         stackName,

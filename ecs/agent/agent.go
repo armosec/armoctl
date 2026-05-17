@@ -1,10 +1,6 @@
 package agent
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/armosec/armoctl/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -29,25 +25,3 @@ func defaultStackName(clusterName string) string {
 	return StackNamePrefix + clusterName
 }
 
-type clusterInfo struct {
-	Region      string
-	ClusterName string
-}
-
-func parseClusterARN(clusterARN string) (*clusterInfo, error) {
-	parsed, err := arn.Parse(clusterARN)
-	if err != nil {
-		return nil, fmt.Errorf("invalid ARN: %w", err)
-	}
-	if parsed.Service != "ecs" {
-		return nil, fmt.Errorf("expected ECS ARN, got service %q", parsed.Service)
-	}
-	if !strings.HasPrefix(parsed.Resource, "cluster/") {
-		return nil, fmt.Errorf("expected cluster ARN, got resource %q", parsed.Resource)
-	}
-	clusterName := strings.TrimPrefix(parsed.Resource, "cluster/")
-	if clusterName == "" {
-		return nil, fmt.Errorf("cluster name is empty in ARN")
-	}
-	return &clusterInfo{Region: parsed.Region, ClusterName: clusterName}, nil
-}

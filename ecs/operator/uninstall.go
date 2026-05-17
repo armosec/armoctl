@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/armosec/armoctl/ecs/clusterarn"
 )
 
 var uninstallCmd = &cobra.Command{
@@ -50,7 +52,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 
 	// Determine region and stack name
 	if clusterARN != "" {
-		cluster, err := parseClusterARN(clusterARN)
+		cluster, err := clusterarn.Parse(clusterARN)
 		if err != nil {
 			return fmt.Errorf("invalid cluster ARN: %w", err)
 		}
