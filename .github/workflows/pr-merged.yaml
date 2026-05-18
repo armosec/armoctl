@@ -13,9 +13,10 @@ jobs:
     release:
         if: >
             ${{
-              github.event.pull_request.merged == true &&
-              contains(github.event.pull_request.labels.*.name, 'release') &&
-              github.repository_owner == 'armosec'
+              github.event_name == 'workflow_dispatch' ||
+              (github.event.pull_request.merged == true &&
+               contains(github.event.pull_request.labels.*.name, 'release') &&
+               github.repository_owner == 'armosec')
             }}
         runs-on: ubuntu-latest
         permissions:
