@@ -30,6 +30,9 @@ func TestCheckForUpdates(t *testing.T) {
 		{"semver comparison v0.0.9 vs v0.0.10", "v0.0.9", "v0.0.10", true},
 		{"semver comparison v0.9.0 vs v0.10.0", "v0.9.0", "v0.10.0", true},
 		{"pre-release version", "v0.0.42-rc1", "v0.0.42", true},
+		{"goreleaser strips v prefix - same version", "0.0.11", "v0.0.11", false},
+		{"goreleaser strips v prefix - update available", "0.0.10", "v0.0.11", true},
+		{"both without v prefix - same version", "0.0.11", "0.0.11", false},
 	}
 
 	for _, tt := range tests {

@@ -83,7 +83,32 @@ Then either:
 	return nil
 }
 
-// PromptAllCredentials prompts for customer-guid, access-key, and api-url,
+// tenant maps a user-friendly label to the pair of hosts armoctl needs.
+type tenant struct {
+	label      string
+	apiBaseURL string // agent-bridge API (used by every skill cluster)
+	apiURL     string // legacy dashboard host (ECS / version-check)
+}
+
+const customTenantLabel = "Custom"
+
+var tenants = []tenant{
+	{"EU (default)", "api.armosec.io", "cloud.armosec.io"},
+	{"US", "api.us.armosec.io", "cloud.us.armosec.io"},
+}
+
+// tenantFromHosts returns the tenant label matching the current config,
+// or "" if no built-in tenant matches (custom/dev override).
+func tenantFromHosts(apiBase, apiURL string) string {
+	for _, t := range tenants {
+		if t.apiBaseURL == apiBase && t.apiURL == apiURL {
+			return t.label
+		}
+	}
+	return ""
+}
+
+// PromptAllCredentials prompts for customer-guid, access-key, and tenant,
 // pre-filling with current values for everything except the access key, which
 // is treated as a secret: the input starts empty, the field description shows
 // a masked preview of the saved key (if any), and an empty/whitespace
@@ -95,7 +120,6 @@ func PromptAllCredentials() error {
 
 	guid := viper.GetString("customer-guid")
 	existingKey := viper.GetString("access-key")
-	apiURL := viper.GetString("api-url")
 
 	_, _ = fmt.Fprintln(os.Stderr, "Where to find your credentials:")
 	_, _ = fmt.Fprintln(os.Stderr, "  • Customer GUID: ARMO Platform UI → top-right account dropdown")
@@ -103,8 +127,6 @@ func PromptAllCredentials() error {
 	_, _ = fmt.Fprintln(os.Stderr, "                   (or https://cloud.us.armosec.io/... for US tenants)")
 	_, _ = fmt.Fprintln(os.Stderr, "")
 
-	// When a key is already saved, leave the input empty and show the masked
-	// current value as a hint. An empty submission means "keep current".
 	var newKey string
 	keyField := huh.NewInput().
 		Title("Access Key").
@@ -117,6 +139,24 @@ func PromptAllCredentials() error {
 		keyField = keyField.Validate(required("Access Key"))
 	}
 
+	// Build tenant options for the select field.
+	currentAPIBase := viper.GetString("api-base-url")
+	currentAPIURL := viper.GetString("api-url")
+	currentLabel := tenantFromHosts(currentAPIBase, currentAPIURL)
+	if currentLabel == "" && (currentAPIBase != tenants[0].apiBaseURL || currentAPIURL != tenants[0].apiURL) {
+		currentLabel = customTenantLabel
+	}
+	if currentLabel == "" {
+		currentLabel = tenants[0].label
+	}
+	selectedTenant := currentLabel
+
+	opts := make([]huh.Option[string], 0, len(tenants)+1)
+	for _, t := range tenants {
+		opts = append(opts, huh.NewOption(t.label, t.label))
+	}
+	opts = append(opts, huh.NewOption(customTenantLabel, customTenantLabel))
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -124,10 +164,10 @@ func PromptAllCredentials() error {
 				Value(&guid).
 				Validate(required("Customer GUID")),
 			keyField,
-			huh.NewInput().
-				Title("API URL").
-				Value(&apiURL).
-				Validate(required("API URL")),
+			huh.NewSelect[string]().
+				Title("Tenant").
+				Options(opts...).
+				Value(&selectedTenant),
 		),
 	)
 
@@ -135,16 +175,46 @@ func PromptAllCredentials() error {
 		return fmt.Errorf("prompting for credentials: %w", err)
 	}
 
-	// Trim whitespace so an accidental space-only submission is treated as
-	// "keep current" rather than overwriting the saved key with garbage.
 	key := existingKey
 	if trimmed := strings.TrimSpace(newKey); trimmed != "" {
 		key = trimmed
 	}
 
+	var apiBase, apiURL string
+	for _, t := range tenants {
+		if t.label == selectedTenant {
+			apiBase = t.apiBaseURL
+			apiURL = t.apiURL
+			break
+		}
+	}
+
+	if selectedTenant == customTenantLabel {
+		apiBase = currentAPIBase
+		apiURL = currentAPIURL
+		customForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("API Base URL").
+					Description("Agent-bridge API host (e.g. api-dev.armosec.io)").
+					Value(&apiBase).
+					Validate(required("API Base URL")),
+				huh.NewInput().
+					Title("Dashboard URL").
+					Description("Legacy dashboard host (e.g. cloud-dev.armosec.io)").
+					Value(&apiURL).
+					Validate(required("Dashboard URL")),
+			),
+		)
+		if err := customForm.Run(); err != nil {
+			return fmt.Errorf("prompting for custom URLs: %w", err)
+		}
+	}
+
 	return applyAndSave(Credentials{
 		CustomerGUID: guid,
 		AccessKey:    key,
+		APIBaseURL:   apiBase,
 		APIURL:       apiURL,
 	}, false)
 }
