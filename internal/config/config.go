@@ -143,7 +143,7 @@ func PromptAllCredentials() error {
 	currentAPIBase := viper.GetString("api-base-url")
 	currentAPIURL := viper.GetString("api-url")
 	currentLabel := tenantFromHosts(currentAPIBase, currentAPIURL)
-	if currentLabel == "" && (currentAPIBase != "api.armosec.io" || currentAPIURL != "cloud.armosec.io") {
+	if currentLabel == "" && (currentAPIBase != tenants[0].apiBaseURL || currentAPIURL != tenants[0].apiURL) {
 		currentLabel = customTenantLabel
 	}
 	if currentLabel == "" {
