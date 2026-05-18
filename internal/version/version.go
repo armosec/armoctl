@@ -68,17 +68,25 @@ func CheckForUpdates(currentVersion, latestVersion string) *UpdateInfo {
 		return info
 	}
 
-	// Use proper semver comparison
-	if semver.IsValid(currentVersion) && semver.IsValid(latestVersion) {
-		if semver.Compare(currentVersion, latestVersion) < 0 {
+	cur := ensureVPrefix(currentVersion)
+	lat := ensureVPrefix(latestVersion)
+
+	if semver.IsValid(cur) && semver.IsValid(lat) {
+		if semver.Compare(cur, lat) < 0 {
 			info.HasUpdate = true
 		}
-	} else if currentVersion != latestVersion {
-		// Fallback to string comparison if versions are not valid semver
+	} else if cur != lat {
 		info.HasUpdate = true
 	}
 
 	return info
+}
+
+func ensureVPrefix(v string) string {
+	if v != "" && v[0] != 'v' {
+		return "v" + v
+	}
+	return v
 }
 
 // GetAgentImage returns the ptrace agent image with the latest tag from cache.
