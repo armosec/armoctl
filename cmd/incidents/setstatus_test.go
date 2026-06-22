@@ -88,7 +88,9 @@ func TestSetStatus_FilterAndSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got map[string]any
-	_ = json.Unmarshal(stdout.Bytes(), &got)
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("output not JSON: %v: %q", err, stdout.String())
+	}
 	req, _ := got["request"].(map[string]any)
 	body, _ := req["body"].(map[string]any)
 	filters, _ := body["innerFilters"].([]any)
@@ -114,7 +116,9 @@ func TestSetStatus_Stdin(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got map[string]any
-	_ = json.Unmarshal(stdout.Bytes(), &got)
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("output not JSON: %v: %q", err, stdout.String())
+	}
 	req, _ := got["request"].(map[string]any)
 	body, _ := req["body"].(map[string]any)
 	guids, _ := body["incidentsGuids"].([]any)
@@ -147,7 +151,9 @@ func TestSetStatus_YesPosts(t *testing.T) {
 			t.Errorf("path: %s", r.URL.Path)
 		}
 		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
 		if body["status"] != "Dismissed" {
 			t.Errorf("body.status: %v", body["status"])
 		}

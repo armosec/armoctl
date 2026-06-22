@@ -677,7 +677,7 @@ incident GUIDs and cluster names are enriched server-side).
 
 ## Usage
 
-```
+```text
 armoctl incidents set-status [guid...] --status <Open|Investigating|Dismissed|Resolved> [flags]
 ```
 
@@ -693,7 +693,7 @@ At least one of GUIDs, `--filter`, or `--search` is required.
 
 ## Selection examples
 
-```
+```bash
 # Specific incidents
 armoctl incidents set-status i1 i2 --status Dismissed
 

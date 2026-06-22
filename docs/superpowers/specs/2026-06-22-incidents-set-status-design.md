@@ -41,7 +41,7 @@ So no backend work is required. This is purely a CLI surface change.
 
 ## Command surface
 
-```
+```text
 armoctl incidents set-status [guid...] --status <Open|Investigating|Dismissed|Resolved> [flags]
 armoctl incidents resolve <guid> [--false-positive]      # unchanged; now an alias
 ```
@@ -63,7 +63,7 @@ One shared internal helper owns the request build, status validation, and
 `safety.Wrap`. Both commands route through it, giving a single code path for the
 `changeStatus` call and audit logging.
 
-```
+```text
 cmd/incidents/
   changestatus.go   # NEW: runStatusChange() helper + status normalization/validation
   setstatus.go      # NEW: SetStatusCmd — flags → statusChangeOpts → runStatusChange
@@ -101,7 +101,7 @@ func runStatusChange(cmd *cobra.Command, cli *apiclient.Client, o statusChangeOp
 
 Request shape:
 
-```
+```text
 POST /runtime/incidents/changeStatus?searchText=<search>
 {
   "status": "Dismissed",

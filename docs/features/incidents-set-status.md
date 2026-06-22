@@ -21,7 +21,7 @@ armoctl incidents set-status [guid...] --status <Open|Investigating|Dismissed|Re
 | `--dry-run` | Preview the request without sending it. |
 | `--yes` | Confirm the mutation in non-interactive mode. |
 
-At least one of GUIDs, `--filter`, or `--search` is required.
+At least one of GUIDs (positional or `--stdin`), `--filter`, or `--search` is required.
 
 ## Selection examples
 
