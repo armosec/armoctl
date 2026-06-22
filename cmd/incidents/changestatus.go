@@ -116,7 +116,7 @@ func runStatusChange(cmd *cobra.Command, cli *apiclient.Client, o statusChangeOp
 	})
 }
 
-// statusChangeArgsLog renders a redacted one-line audit summary of the selection.
+// statusChangeArgsLog renders a one-line audit summary of the selection.
 func statusChangeArgsLog(o statusChangeOpts) string {
 	parts := []string{"status=" + o.status}
 	if len(o.guids) > 0 {

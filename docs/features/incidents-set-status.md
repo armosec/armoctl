@@ -18,6 +18,8 @@ armoctl incidents set-status [guid...] --status <Open|Investigating|Dismissed|Re
 | `--search` | Free-text; sent as the `searchText` query parameter. |
 | `--stdin` | Read additional GUIDs from stdin (whitespace/newline separated). |
 | `--false-positive` | Sets `markedAsFalsePositive`. |
+| `--dry-run` | Preview the request without sending it. |
+| `--yes` | Confirm the mutation in non-interactive mode. |
 
 At least one of GUIDs, `--filter`, or `--search` is required.
 
@@ -44,3 +46,4 @@ and `--yes` to confirm in non-interactive mode. Actions are written to the audit
 
 `armoctl incidents resolve <guid>` is a thin alias that sets status to `Resolved`
 (with optional `--false-positive`). Both commands share one internal request path.
+
