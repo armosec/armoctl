@@ -21,7 +21,7 @@ func Cheatsheet() []Field {
 		{"guid", "Stable incident ID; primary key for resolve/explain/alerts."},
 		{"name", "Short rule/incident name (e.g. \"Suspicious binary execution\")."},
 		{"kind", "Incident kind/category (e.g. \"ThreatDetection\")."},
-		{"attributes.incidentStatus", "Current status: open | resolved | investigating. Access with path syntax."},
+		{"attributes.incidentStatus", "Current status: Open | Investigating | Dismissed | Resolved. Access with path syntax."},
 		{"updatedTime", "RFC3339 timestamp of the last status change."},
 		{"timestamp", "RFC3339 time the incident was first raised."},
 		{"clusterName", "Kubernetes cluster that reported the incident."},

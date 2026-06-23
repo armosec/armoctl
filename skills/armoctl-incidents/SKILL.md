@@ -18,6 +18,13 @@ The incidents cluster is the live runtime-threat surface. An incident is the uni
 - `resolve [guid]` — Resolve a runtime incident (sets status to Resolved)
   - Flags:
     - `--false-positive` (bool) Mark the incident as a false positive when resolving
+- `set-status [guid...]` — Change the status of runtime incidents (Open|Investigating|Dismissed|Resolved)
+  - Flags:
+    - `--false-positive` (bool) Mark the incidents as false positives
+    - `--filter` (stringArray) Filter as key=value (repeatable); selects incidents to change
+    - `--search` (string) Free-text search to select incidents
+    - `--status` (string) Target status: Open|Investigating|Dismissed|Resolved (required)
+    - `--stdin` (bool) Read additional incident GUIDs from stdin
 - `severities` — Get aggregate incident counts per severity
 
 ## Resource fields
@@ -29,7 +36,7 @@ The incidents cluster is the live runtime-threat surface. An incident is the uni
 | `guid` | Stable incident ID; primary key for resolve/explain/alerts. |
 | `name` | Short rule/incident name (e.g. "Suspicious binary execution"). |
 | `kind` | Incident kind/category (e.g. "ThreatDetection"). |
-| `attributes.incidentStatus` | Current status: open \| resolved \| investigating. Access with path syntax. |
+| `attributes.incidentStatus` | Current status: Open \| Investigating \| Dismissed \| Resolved. Access with path syntax. |
 | `updatedTime` | RFC3339 timestamp of the last status change. |
 | `timestamp` | RFC3339 time the incident was first raised. |
 | `clusterName` | Kubernetes cluster that reported the incident. |
@@ -39,7 +46,7 @@ The incidents cluster is the live runtime-threat surface. An incident is the uni
 
 ## Field semantics
 
-**`attributes.incidentStatus`** — Live state machine: open → investigating → resolved. Access with path syntax: .attributes.incidentStatus
+**`attributes.incidentStatus`** — Live state machine. Canonical values: Open | Investigating | Dismissed | Resolved. Access with path syntax: .attributes.incidentStatus
 
 **`signature`** — Unique fingerprint identifying the rule that fired. Incidents sharing a signature are the same detection event pattern.
 
@@ -55,5 +62,18 @@ armoctl incidents list --severity Critical
 
 ```
 armoctl incidents alerts <incident-guid>
+```
+
+### Dismiss incidents matching a filter
+
+```
+armoctl incidents set-status --status Dismissed --filter severity=Low
+```
+
+### Bulk dismiss a list of incident GUIDs from stdin
+
+```
+armoctl incidents list --severity Low -o json | jq -r '.items[].guid' | \
+  armoctl incidents set-status --status Dismissed --stdin --yes
 ```
 

@@ -14,7 +14,8 @@ func init() {
 			"ARMO-policy-adjusted, not raw alert severity. Use 'incidents alerts <guid>' to get the full " +
 			"alert payload behind an incident before resolving it.",
 		FieldNotes: map[string]string{
-			"attributes.incidentStatus": "Live state machine: open → investigating → resolved. " +
+			"attributes.incidentStatus": "Live state machine. Canonical values: " +
+				"Open | Investigating | Dismissed | Resolved. " +
 				"Access with path syntax: .attributes.incidentStatus",
 			"signature": "Unique fingerprint identifying the rule that fired. Incidents sharing a " +
 				"signature are the same detection event pattern.",
@@ -28,6 +29,14 @@ func init() {
 			{
 				Title: "Get all alerts for an incident",
 				Body:  "```\narmoctl incidents alerts <incident-guid>\n```",
+			},
+			{
+				Title: "Dismiss incidents matching a filter",
+				Body:  "```\narmoctl incidents set-status --status Dismissed --filter severity=Low\n```",
+			},
+			{
+				Title: "Bulk dismiss a list of incident GUIDs from stdin",
+				Body:  "```\narmoctl incidents list --severity Low -o json | jq -r '.items[].guid' | \\\n  armoctl incidents set-status --status Dismissed --stdin --yes\n```",
 			},
 		},
 	})
