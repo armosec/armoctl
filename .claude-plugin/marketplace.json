@@ -9,7 +9,7 @@
     {
       "name": "armoctl",
       "description": "ARMO security platform CLI as a Claude skill",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "source": "./",
       "author": {
         "name": "ARMO",
