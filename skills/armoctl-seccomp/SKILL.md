@@ -15,6 +15,16 @@ Same model as network-policies but for seccomp: ARMO records the syscall set at 
     - `--wlid` (stringSlice) Workload ID (repeatable, required)
 - `list` — List seccomp profiles
 
+## Mutations
+
+Any command that writes (create, update, delete, status changes, …) follows the safety contract of the `armoctl` skill:
+
+1. Run it with `--dry-run` and show the user what will change.
+2. Ask the user to confirm and wait for an explicit "yes". The original request is not confirmation.
+3. After the user confirms, re-run the identical command with `--yes` in place of `--dry-run`. If any argument changes, dry-run and confirm again.
+
+This holds even when the host auto-approves `armoctl` commands.
+
 ## Resource fields
 
 ### profiles
