@@ -102,7 +102,14 @@ Every mutating command supports:
 - `--yes` — skips confirmation. **Required** in non-interactive (agent/CI) contexts; without it, mutations exit with code 6 ("NEEDS_CONFIRM").
 - Audit log entry per executed mutation (RFC3339 timestamp, command, URL, request ID).
 
-**Rule:** for any mutation, run `--dry-run` first to inspect the payload, then re-run with `--yes` once you're confident.
+**Rule — every mutation, no exceptions:**
+
+1. Run the command with `--dry-run`.
+2. Show the user what will change: the method, the target, and the payload fields that matter.
+3. Stop and ask the user to confirm. Wait for an explicit "yes" in a new message. The original request ("create an exception for …") is **not** confirmation, and neither is your own judgement that the dry run looks right.
+4. After the user confirms, re-run the **identical** command with `--yes` in place of `--dry-run`. If any argument changes, go back to step 1.
+
+This holds even when the host would let you run the command without prompting (auto-approve, allow-all, or "don't ask again" for `armoctl`).
 
 ## 4. Error model
 
@@ -111,7 +118,7 @@ Exit codes: `0 OK · 2 BadInput · 3 Auth · 4 NotFound · 5 Server · 6 NeedsCo
 Errors emit JSON to **stderr** (`{error, code, hint, requestId}`) so stdout stays clean for piping.
 
 Common scenarios:
-- **Exit 6** — mutation attempted without `--yes` in non-interactive context. Add `--yes` and retry.
+- **Exit 6** — mutation attempted without `--yes` in non-interactive context. Follow the safety contract (§3): dry-run, show the user, get explicit confirmation, then retry with `--yes`.
 - **Exit 3** — credentials missing or expired. Run `armoctl configure` or set `ARMO_CUSTOMER_GUID` / `ARMO_ACCESS_KEY`.
 - **Exit 4** — resource GUID not found; verify with `list` first.
 - **Exit 5** — upstream API error; the `requestId` in stderr can be shared with support.
