@@ -12,6 +12,7 @@ func main() {
 	if err := fang.Execute(
 		context.Background(),
 		rootCmd,
+		fang.WithVersion(Version),
 		fang.WithNotifySignal(os.Interrupt, syscall.SIGTERM),
 	); err != nil {
 		os.Exit(1)
