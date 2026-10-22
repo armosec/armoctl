@@ -2,9 +2,9 @@
 
 CLI tool for instrumenting ECS task definitions with the ARMO runtime security agent.
 
-## 🤖 Use from Claude Code or Gemini CLI
+## 🤖 Use from Claude Code, Gemini CLI, or GitHub Copilot CLI
 
-armoctl ships as a Claude Code plugin (and Gemini CLI extension) so AI assistants can drive the ARMO security platform directly: list incidents, triage CVEs, manage exception policies, generate network policies, and more.
+armoctl ships as a Claude Code plugin (also installable in GitHub Copilot CLI, and as a Gemini CLI extension) so AI assistants can drive the ARMO security platform directly: list incidents, triage CVEs, manage exception policies, generate network policies, and more.
 
 ### Claude Code
 
@@ -23,11 +23,20 @@ gemini extension install https://github.com/armosec/armoctl
 
 Gemini CLI first tries to fetch a release-asset bundle and fails with a 404, then offers a `git clone` fallback — answer **Y** to that prompt and accept the one-time review of hooks/skills. The extension loads the same skills as the Claude plugin and the same SessionStart hook installs/updates the `armoctl` binary on the first session. No need to install the binary manually first.
 
+### GitHub Copilot CLI
+
+```
+copilot plugin marketplace add armosec/armoctl
+copilot plugin install armoctl@armosec
+```
+
+Copilot CLI reads the same `.claude-plugin/` manifests, skills, and `hooks/hooks.json` as Claude Code — there is no Copilot-specific manifest. The first time a session starts, the SessionStart hook installs the `armoctl` binary if it's missing, then keeps it on the plugin's version. Check with `copilot plugin list`, or `/skills list` inside a session.
+
 ### What's in the plugin
 
 - A root `armoctl` skill covering setup, the JSON output contract (`--full` / `--fields` / `--query`), the mutation safety contract (`--dry-run` / `--yes`), and error semantics.
 - 13 per-cluster skills (`armoctl-incidents`, `armoctl-vulns`, `armoctl-posture`, `armoctl-risks`, `armoctl-attack-chains`, `armoctl-inventory`, `armoctl-network-policies`, `armoctl-seccomp`, `armoctl-runtime-rules`, `armoctl-runtime-policies`, `armoctl-integrations`, `armoctl-cloud-accounts`, `armoctl-repo-posture`) auto-loaded by description match when the user's task touches that cluster.
-- A SessionStart hook that ensures the binary is present and version-matched.
+- A SessionStart hook that ensures the binary is present and version-matched. One `hooks/hooks.json` serves all three hosts: Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}`, Gemini CLI substitutes `${extensionPath}`, and Copilot CLI exports `CLAUDE_PLUGIN_ROOT` into the hook's environment. The hook leaves non-release builds (`dev`, `v0.0.13-dirty`) alone.
 
 ### Configure once
 
@@ -64,7 +73,7 @@ export ARMO_ACCESS_KEY=...
 export ARMO_API_BASE_URL=api.armosec.io   # default; override for staging
 ```
 
-Once configured, the agent can run any read-only command directly. Mutations require `--dry-run` for the preview and `--yes` to commit (or a confirmation prompt on a TTY).
+Once configured, the agent can run any read-only command directly. Mutations require `--dry-run` for the preview and `--yes` to commit (or a confirmation prompt on a TTY). The skills tell the agent to show you the dry-run and wait for your explicit confirmation before it runs `--yes`.
 
 ## 📦 Install
 
