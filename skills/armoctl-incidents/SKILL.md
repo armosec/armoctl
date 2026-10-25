@@ -76,14 +76,26 @@ armoctl incidents alerts <incident-guid>
 
 ### Dismiss incidents matching a filter
 
+Preview, show the user, and wait for an explicit yes (see Mutations):
+
 ```
-armoctl incidents set-status --status Dismissed --filter severity=Low
+armoctl incidents set-status --status Dismissed --filter severity=Low --dry-run
 ```
+
+After the user confirms, run the same command with `--yes` in place of `--dry-run`.
 
 ### Bulk dismiss a list of incident GUIDs from stdin
 
+Save the GUIDs to a file first, so the dry-run and the confirmed run act on the same list:
+
 ```
-armoctl incidents list --severity Low -o json | jq -r '.items[].guid' | \
-  armoctl incidents set-status --status Dismissed --stdin --yes
+armoctl incidents list --severity Low | jq -r '.items[].guid' > guids.txt
+armoctl incidents set-status --status Dismissed --stdin --dry-run < guids.txt
+```
+
+Show the user the dry-run and wait for an explicit yes. Then:
+
+```
+armoctl incidents set-status --status Dismissed --stdin --yes < guids.txt
 ```
 
