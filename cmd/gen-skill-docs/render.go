@@ -33,6 +33,10 @@ func renderSkill(m skillmeta.Meta, clusterCmd *cobra.Command) []byte {
 	}
 	fmt.Fprintln(&b)
 
+	// Mutation contract. Agents often load only the cluster skill, so the
+	// confirmation rule from the root armoctl skill is repeated here.
+	fmt.Fprint(&b, mutationSection)
+
 	// Resource fields
 	if len(m.Cheatsheet) > 0 {
 		fmt.Fprintln(&b, "## Resource fields")
@@ -79,6 +83,13 @@ func renderSkill(m skillmeta.Meta, clusterCmd *cobra.Command) []byte {
 
 	return b.Bytes()
 }
+
+const mutationSection = "## Mutations\n\n" +
+	"Any command that writes (create, update, delete, status changes, …) follows the safety contract of the `armoctl` skill:\n\n" +
+	"1. Run it with `--dry-run` and show the user what will change.\n" +
+	"2. Ask the user to confirm and wait for an explicit \"yes\". The original request is not confirmation.\n" +
+	"3. After the user confirms, re-run the identical command with `--yes` in place of `--dry-run`. If any argument changes, dry-run and confirm again.\n\n" +
+	"This holds even when the host auto-approves `armoctl` commands.\n\n"
 
 func writeCommandTree(b *bytes.Buffer, cmd *cobra.Command, prefix string) {
 	for _, sub := range cmd.Commands() {

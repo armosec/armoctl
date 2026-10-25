@@ -27,6 +27,16 @@ The incidents cluster is the live runtime-threat surface. An incident is the uni
     - `--stdin` (bool) Read additional incident GUIDs from stdin
 - `severities` — Get aggregate incident counts per severity
 
+## Mutations
+
+Any command that writes (create, update, delete, status changes, …) follows the safety contract of the `armoctl` skill:
+
+1. Run it with `--dry-run` and show the user what will change.
+2. Ask the user to confirm and wait for an explicit "yes". The original request is not confirmation.
+3. After the user confirms, re-run the identical command with `--yes` in place of `--dry-run`. If any argument changes, dry-run and confirm again.
+
+This holds even when the host auto-approves `armoctl` commands.
+
 ## Resource fields
 
 ### incidents
@@ -66,14 +76,26 @@ armoctl incidents alerts <incident-guid>
 
 ### Dismiss incidents matching a filter
 
+Preview, show the user, and wait for an explicit yes (see Mutations):
+
 ```
-armoctl incidents set-status --status Dismissed --filter severity=Low
+armoctl incidents set-status --status Dismissed --filter severity=Low --dry-run
 ```
+
+After the user confirms, run the same command with `--yes` in place of `--dry-run`.
 
 ### Bulk dismiss a list of incident GUIDs from stdin
 
+Save the GUIDs to a file first, so the dry-run and the confirmed run act on the same list:
+
 ```
-armoctl incidents list --severity Low -o json | jq -r '.items[].guid' | \
-  armoctl incidents set-status --status Dismissed --stdin --yes
+armoctl incidents list --severity Low | jq -r '.items[].guid' > guids.txt
+armoctl incidents set-status --status Dismissed --stdin --dry-run < guids.txt
+```
+
+Show the user the dry-run and wait for an explicit yes. Then:
+
+```
+armoctl incidents set-status --status Dismissed --stdin --yes < guids.txt
 ```
 

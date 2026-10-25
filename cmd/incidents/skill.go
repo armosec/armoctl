@@ -32,11 +32,17 @@ func init() {
 			},
 			{
 				Title: "Dismiss incidents matching a filter",
-				Body:  "```\narmoctl incidents set-status --status Dismissed --filter severity=Low\n```",
+				Body: "Preview, show the user, and wait for an explicit yes (see Mutations):\n\n" +
+					"```\narmoctl incidents set-status --status Dismissed --filter severity=Low --dry-run\n```\n\n" +
+					"After the user confirms, run the same command with `--yes` in place of `--dry-run`.",
 			},
 			{
 				Title: "Bulk dismiss a list of incident GUIDs from stdin",
-				Body:  "```\narmoctl incidents list --severity Low -o json | jq -r '.items[].guid' | \\\n  armoctl incidents set-status --status Dismissed --stdin --yes\n```",
+				Body: "Save the GUIDs to a file first, so the dry-run and the confirmed run act on the same list:\n\n" +
+					"```\narmoctl incidents list --severity Low | jq -r '.items[].guid' > guids.txt\n" +
+					"armoctl incidents set-status --status Dismissed --stdin --dry-run < guids.txt\n```\n\n" +
+					"Show the user the dry-run and wait for an explicit yes. Then:\n\n" +
+					"```\narmoctl incidents set-status --status Dismissed --stdin --yes < guids.txt\n```",
 			},
 		},
 	})
