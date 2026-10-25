@@ -13,7 +13,7 @@ armoctl ships as a Claude Code plugin (also installable in GitHub Copilot CLI, a
 /plugin install armoctl@armosec
 ```
 
-The first time a session starts, the plugin checks for the `armoctl` binary on `PATH` and runs the official installer if it's missing. After that, the SessionStart hook keeps the binary on the same version as the plugin (running `armoctl update` whenever they drift).
+The first time a session starts, the plugin checks for the `armoctl` binary on `PATH` and runs the official installer if it's missing. After that, whenever a released binary's version differs from the plugin's, the SessionStart hook reinstalls the plugin's version in place, so the binary always matches the skills it ships with. A locally built binary is left alone.
 
 ### Gemini CLI
 

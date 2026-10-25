@@ -58,8 +58,9 @@ func writeFile(t *testing.T, path, body string, mode os.FileMode) {
 
 // stubArmoctl writes a fake armoctl. versionOut is what `armoctl version`
 // prints in its "Version:" line (on stderr, like the real binary); flagOut is
-// the full `armoctl --version` line.
-// `armoctl update` records the call in update_called.
+// the full `armoctl --version` line. `armoctl update` records the call in
+// update_called; the hook must never use it (it installs the latest release,
+// not the plugin's version).
 func (f *fixture) stubArmoctl(t *testing.T, versionOut, flagOut string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -74,8 +75,9 @@ exit 0
 }
 
 // stubCurl writes a fake curl that serves an install.sh. When ok, the served
-// script drops a stub armoctl into the --dir it is given and, like the real
-// installer, prints progress on stdout; otherwise curl fails.
+// script records its arguments in $HOME/install_args, drops a stub armoctl
+// into the --dir it is given and, like the real installer, prints progress on
+// stdout; otherwise curl fails.
 func (f *fixture) stubCurl(t *testing.T, ok bool) {
 	t.Helper()
 	script := "#!/usr/bin/env bash\nexit 22\n"
@@ -83,12 +85,20 @@ func (f *fixture) stubCurl(t *testing.T, ok bool) {
 		script = `#!/usr/bin/env bash
 cat <<'EOF'
 echo "Downloading armoctl..."
+echo "$*" > "$HOME/install_args"
 while [ $# -gt 0 ]; do case "$1" in --dir) dir=$2; shift ;; esac; shift; done
 mkdir -p "$dir" && printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/armoctl" && chmod +x "$dir/armoctl"
 EOF
 `
 	}
 	writeFile(t, filepath.Join(f.stubDir, "curl"), script, 0o755)
+}
+
+// installArgs returns the arguments the stub install.sh ran with, or "" if
+// it never ran.
+func (f *fixture) installArgs() string {
+	b, _ := os.ReadFile(filepath.Join(f.home, "install_args"))
+	return strings.TrimSpace(string(b))
 }
 
 func (f *fixture) updateCalled() bool {
@@ -172,19 +182,20 @@ func assertContextJSON(t *testing.T, stdout, want string) {
 }
 
 // The hooks.json command must resolve to the real script under every host's
-// variable set. A version mismatch makes the hook call `armoctl update`, which
-// proves the script ran and read the fixture's plugin.json.
+// variable set. A version mismatch makes the hook reinstall the plugin's
+// version, which proves the script ran and read the fixture's plugin.json.
 func TestHookCommand_ResolvesUnderEachHost(t *testing.T) {
 	for host, vars := range hostEnvs {
 		t.Run(host, func(t *testing.T) {
 			f := newFixture(t, "0.0.8")
 			f.stubArmoctl(t, "0.0.7", "armoctl version 0.0.7")
+			f.stubCurl(t, true)
 			var env []string
 			for _, v := range vars {
 				env = append(env, v+"="+f.root)
 			}
 			f.exec(t, exec.Command("bash", "-c", f.hookCommand(t)), env)
-			if !f.updateCalled() {
+			if !strings.Contains(f.installArgs(), "--version v0.0.8") {
 				t.Errorf("hook did not run from %s under %s variables", f.root, host)
 			}
 		})
@@ -212,9 +223,10 @@ func TestHookCommand_NoHostVars_CollapsesToRootPath(t *testing.T) {
 func TestHook_IgnoresInjectedRoot(t *testing.T) {
 	f := newFixture(t, "0.0.7")
 	f.stubArmoctl(t, "0.0.7", "armoctl version 0.0.7")
+	f.stubCurl(t, true)
 	wrong := newFixture(t, "9.9.9").root
 	stdout, _ := f.run(t, []string{"CLAUDE_PLUGIN_ROOT=" + wrong, "extensionPath=" + wrong, "PLUGIN_ROOT=" + wrong})
-	if f.updateCalled() {
+	if f.installArgs() != "" {
 		t.Errorf("hook read the injected root's plugin.json instead of its own")
 	}
 	if stdout != "" {
@@ -225,28 +237,71 @@ func TestHook_IgnoresInjectedRoot(t *testing.T) {
 func TestHook_VersionMatch_NoOpAndQuiet(t *testing.T) {
 	f := newFixture(t, "0.0.7")
 	f.stubArmoctl(t, "0.0.7", "armoctl version 0.0.7")
+	f.stubCurl(t, true)
 	stdout, stderr := f.run(t, nil)
-	if f.updateCalled() {
-		t.Errorf("update should NOT have been called when versions match")
+	if f.installArgs() != "" || f.updateCalled() {
+		t.Errorf("nothing should be installed when versions match")
 	}
 	if stdout != "" || stderr != "" {
 		t.Errorf("expected a silent no-op, got stdout=%q stderr=%q", stdout, stderr)
 	}
 }
 
-func TestHook_VersionMismatch_RunsUpdate(t *testing.T) {
+// On drift the hook reinstalls the plugin's exact version over the binary on
+// PATH. `armoctl update` would install the latest release instead, so a
+// plugin pinned behind latest would never converge.
+func TestHook_VersionMismatch_ReinstallsPinnedInPlace(t *testing.T) {
+	for _, installed := range []string{"0.0.7", "0.0.9"} { // behind and ahead
+		t.Run(installed, func(t *testing.T) {
+			f := newFixture(t, "0.0.8")
+			f.stubArmoctl(t, installed, "armoctl version "+installed)
+			f.stubCurl(t, true)
+			stdout, stderr := f.run(t, nil)
+			if want := "--version v0.0.8 --dir " + f.stubDir; f.installArgs() != want {
+				t.Errorf("install args = %q, want %q. stderr: %s", f.installArgs(), want, stderr)
+			}
+			if f.updateCalled() {
+				t.Errorf("hook must not run `armoctl update`")
+			}
+			if !strings.Contains(stderr, "differs from plugin") {
+				t.Errorf("expected mismatch message, got: %s", stderr)
+			}
+			if stdout != "" {
+				t.Errorf("installer output must not reach stdout (hosts parse it as JSON), got %q", stdout)
+			}
+		})
+	}
+}
+
+func TestHook_VersionMismatch_ReinstallFails(t *testing.T) {
 	f := newFixture(t, "0.0.8")
 	f.stubArmoctl(t, "0.0.7", "armoctl version 0.0.7")
+	f.stubCurl(t, false)
 	stdout, stderr := f.run(t, nil)
-	if !f.updateCalled() {
-		t.Errorf("update should have been called when versions differ. stderr: %s", stderr)
+	if !strings.Contains(stderr, "reinstall failed") {
+		t.Errorf("expected failure message, got: %s", stderr)
 	}
-	if !strings.Contains(stderr, "differs from plugin") {
-		t.Errorf("expected mismatch message, got: %s", stderr)
+	assertContextJSON(t, stdout, "Auto-update failed")
+}
+
+// install.sh falls back to sudo for a non-writable dir, which can't prompt
+// under an agent host. The hook skips and tells the user instead.
+func TestHook_VersionMismatch_BinDirNotWritable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write anywhere")
 	}
-	if stdout != "" {
-		t.Errorf("update output must not reach stdout (hosts parse it as JSON), got %q", stdout)
+	f := newFixture(t, "0.0.8")
+	f.stubArmoctl(t, "0.0.7", "armoctl version 0.0.7")
+	f.stubCurl(t, true)
+	if err := os.Chmod(f.stubDir, 0o555); err != nil {
+		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = os.Chmod(f.stubDir, 0o755) })
+	stdout, _ := f.run(t, nil)
+	if f.installArgs() != "" {
+		t.Errorf("must not try to install into a non-writable dir")
+	}
+	assertContextJSON(t, stdout, "is not writable")
 }
 
 // Released binaries up to v0.0.13 print "unknown (built from source)" for
@@ -255,9 +310,10 @@ func TestHook_VersionMismatch_RunsUpdate(t *testing.T) {
 func TestHook_LegacyVersionFlag_NoSpuriousUpdate(t *testing.T) {
 	f := newFixture(t, "0.0.13")
 	f.stubArmoctl(t, "0.0.13", "armoctl version unknown (built from source)")
+	f.stubCurl(t, true)
 	f.run(t, nil)
-	if f.updateCalled() {
-		t.Errorf("update called although `armoctl version` matches the plugin")
+	if f.installArgs() != "" {
+		t.Errorf("reinstalled although `armoctl version` matches the plugin")
 	}
 }
 
@@ -268,9 +324,10 @@ func TestHook_DevBuild_SkipsUpdate(t *testing.T) {
 		t.Run(v, func(t *testing.T) {
 			f := newFixture(t, "0.0.13")
 			f.stubArmoctl(t, v, "armoctl version "+v)
+			f.stubCurl(t, true)
 			stdout, stderr := f.run(t, nil)
-			if f.updateCalled() {
-				t.Errorf("update must not replace a local build")
+			if f.installArgs() != "" {
+				t.Errorf("must not replace a local build")
 			}
 			if stdout != "" || !strings.Contains(stderr, "not a release build") {
 				t.Errorf("stdout=%q stderr=%q", stdout, stderr)
@@ -287,7 +344,7 @@ func TestHook_BinaryMissing_Installs(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(installDir, "armoctl")); err != nil {
 		t.Fatalf("armoctl was not installed into %s. stderr: %s", installDir, stderr)
 	}
-	if !strings.Contains(stderr, "installing v0.0.7") {
+	if !strings.Contains(f.installArgs(), "--version v0.0.7") || !strings.Contains(stderr, "installing v0.0.7") {
 		t.Errorf("expected install message, got: %s", stderr)
 	}
 	assertContextJSON(t, stdout, "just installed")

@@ -52,15 +52,17 @@ variables, and reads the pinned version from `.claude-plugin/plugin.json`.
 |------------------|--------|
 | Missing | Install the plugin's version into `~/.local/bin` via `install.sh`; emit context telling the agent it was installed (or that `~/.local/bin` is not on `PATH`, or that the install failed). |
 | Release build, same version | Nothing (no output). |
-| Release build, different version | `armoctl update`; emit context only if that fails. |
+| Release build, different version (older or newer) | Reinstall the plugin's version via `install.sh --version v<plugin> --dir <dir of the binary on PATH>`; the next session is a no-op. If that dir isn't writable (install.sh would need sudo, which can't prompt under an agent host) or the install fails, emit context with the manual command. |
 | Non-release build (`dev`, `v0.0.13-dirty`, `v0.0.12-4-gabc123`) | Nothing, a note on stderr. Avoids replacing a developer's local build. |
 
 The version comes from `armoctl version` (stderr), not `--version`: released binaries up
 to v0.0.13 print `unknown (built from source)` for `--version`. From the next release
 `--version` reports the real version too (`fang.WithVersion` in `main.go`).
 
-stdout is reserved for the hook JSON; installer and `armoctl update` output go to
-stderr. The hook always exits 0.
+The hook doesn't use `armoctl update`: it installs the latest release, so a plugin
+pinned behind latest would reinstall on every session and never converge.
+
+stdout is reserved for the hook JSON; installer output goes to stderr. The hook always exits 0.
 
 ## Mutation contract in skills
 
