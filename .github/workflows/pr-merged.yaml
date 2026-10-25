@@ -24,10 +24,19 @@ jobs:
             contents: write
 
         steps:
+            - name: Generate repo-write token
+              id: app-token
+              uses: actions/create-github-app-token@v3.2.0
+              with:
+                  client-id: ${{ vars.REPO_READ_WRITE_APP_ID }}
+                  private-key: ${{ secrets.REPO_READ_WRITE_APP_PRIVATE_KEY }}
+                  repositories: armoctl
+                  permission-contents: write
+
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-                  token: ${{ secrets.ARMOSEC_GITHUB_ACCESS_TOKEN }}
+                  token: ${{ steps.app-token.outputs.token }}
 
             - uses: actions/setup-go@v5
               with:
