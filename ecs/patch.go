@@ -54,10 +54,11 @@ func runPatch(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := registerTaskDef(cmd.Context(), client, td); err != nil {
+		arn, err := registerTaskDef(cmd.Context(), client, td)
+		if err != nil {
 			return fmt.Errorf("registering task definition: %w", err)
 		}
-		cmd.PrintErrf("Registered task definition: %s\n", aws.ToString(td.Family))
+		cmd.PrintErrln(registeredMessage(arn, aws.ToString(td.Family)))
 	}
 
 	return nil

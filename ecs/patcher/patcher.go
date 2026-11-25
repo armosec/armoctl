@@ -1,7 +1,10 @@
 package patcher
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -20,8 +23,9 @@ const (
 
 // Patch modifies the given TaskDefinition in place, injecting the ARMO ptrace
 // sidecar and volume-fixer init container. Target containers are wrapped to
-// launch through the ptrace shim.
-func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
+// launch through the ptrace shim. On error the task definition is left
+// unchanged.
+func Patch(ctx context.Context, td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 	for _, c := range td.ContainerDefinitions {
 		if aws.ToString(c.Name) == sidecarName {
 			return fmt.Errorf("task definition is already patched: container %q exists", sidecarName)
@@ -30,6 +34,30 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 
 	targets, err := resolveTargets(td, opts.Containers)
 	if err != nil {
+		return err
+	}
+
+	// Work out every target's new argv before touching td, so a failed
+	// lookup leaves the task definition as it was.
+	var arch ecstypes.CPUArchitecture
+	if td.RuntimePlatform != nil {
+		arch = td.RuntimePlatform.CpuArchitecture
+	}
+	wrapped := make(map[string]argv, len(targets))
+	var errs []error
+	for i := range td.ContainerDefinitions {
+		c := &td.ContainerDefinitions[i]
+		if !targets[aws.ToString(c.Name)] {
+			continue
+		}
+		a, err := wrapContainer(ctx, c, arch, opts.Resolver)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		wrapped[aws.ToString(c.Name)] = a
+	}
+	if err := errors.Join(errs...); err != nil {
 		return err
 	}
 
@@ -65,7 +93,7 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 			},
 		},
 		HealthCheck: &ecstypes.HealthCheck{
-			Command:     []string{"CMD", "/usr/bin/ptrace-agent", "--health", " --shim"},
+			Command:     []string{"CMD", "/usr/bin/ptrace-agent", "--health", "--shim"},
 			Interval:    aws.Int32(5),
 			Timeout:     aws.Int32(2),
 			Retries:     aws.Int32(3),
@@ -97,10 +125,8 @@ func Patch(td *TaskDefinition, opts PatchOptions, sidecar SidecarConfig) error {
 
 		c := &td.ContainerDefinitions[i]
 
-		// Skip command wrapping if the container has no command (relies on image ENTRYPOINT/CMD).
-		if len(c.Command) > 0 {
-			c.Command = wrapCommand(c.Command)
-		}
+		c.EntryPoint = wrapped[name].entryPoint
+		c.Command = wrapped[name].command
 
 		hasSharedMount := false
 		for _, mp := range c.MountPoints {
@@ -153,11 +179,48 @@ func resolveTargets(td *TaskDefinition, names []string) (map[string]bool, error)
 	return targets, nil
 }
 
-// wrapCommand prepends the ptrace-shim to the original container command.
-// ECS Command is exec-form ([]string), so each element is passed directly
-// as an argv entry with no shell interpretation.
-func wrapCommand(cmd []string) []string {
-	return append([]string{shimPath}, cmd...)
+// argv is a container's patched entryPoint and command.
+type argv struct {
+	entryPoint []string
+	command    []string
+}
+
+// wrapContainer returns the entryPoint/command that start c through the
+// ptrace shim with the argv it had before patching. ECS runs
+// entryPoint+command; without an entryPoint it runs the image ENTRYPOINT
+// followed by command or, if that is empty too, the image CMD. Setting
+// entryPoint makes Docker ignore the image CMD, so it is copied into
+// command explicitly.
+func wrapContainer(ctx context.Context, c *ecstypes.ContainerDefinition, arch ecstypes.CPUArchitecture, resolver ImageConfigResolver) (argv, error) {
+	if len(c.EntryPoint) > 0 {
+		if c.EntryPoint[0] == shimPath {
+			return argv{entryPoint: c.EntryPoint, command: c.Command}, nil
+		}
+		return argv{entryPoint: append([]string{shimPath}, c.EntryPoint...), command: c.Command}, nil
+	}
+
+	image := aws.ToString(c.Image)
+	fail := func(cause error) (argv, error) {
+		return argv{}, fmt.Errorf("container %q: cannot read ENTRYPOINT/CMD of image %q: %v. "+
+			"Set \"entryPoint\" and \"command\" explicitly for this container in the task definition, "+
+			"or leave it out of the targets with --container", aws.ToString(c.Name), image, cause)
+	}
+	if resolver == nil {
+		return fail(errors.New("no image resolver configured"))
+	}
+	cfg, err := resolver.Resolve(ctx, image, arch)
+	if err != nil {
+		return fail(err)
+	}
+
+	command := c.Command
+	if len(command) == 0 {
+		command = slices.Clone(cfg.Cmd)
+	}
+	if len(cfg.Entrypoint) == 0 && len(command) == 0 {
+		return fail(errors.New("image defines no ENTRYPOINT or CMD"))
+	}
+	return argv{entryPoint: append([]string{shimPath}, cfg.Entrypoint...), command: command}, nil
 }
 
 // sidecarLogConfig returns a deep copy of the LogConfiguration of the first

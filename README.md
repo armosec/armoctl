@@ -91,7 +91,7 @@ make armoctl
 
 Most armoctl commands talk to the ARMO platform API and require credentials — the API-backed skills (incidents, vulnerabilities, posture, risks, attack chains, runtime rules/policies, network policies, seccomp, integrations, cloud accounts, repository posture, inventory) authenticate with `customer-guid` and `access-key`. Local helpers like the per-cluster `fields` cheatsheets work offline.
 
-The ECS commands (`ecs patch`, `ecs instrument`) also need credentials: they ask the ARMO API which agent image to use for the AWS region of your AWS config. With an explicit `--agent-image`, previewing a patched task definition works offline; only `--register` and `--deploy` then need credentials.
+The ECS commands (`ecs patch`, `ecs instrument`) also need credentials: they ask the ARMO API which agent image to use for the AWS region of your AWS config. Patching also reads the ENTRYPOINT/CMD of each target container's image from its registry, unless the container sets `entryPoint` in the task definition: ECR images use your AWS credentials, other registries use your Docker credentials or anonymous access. With an explicit `--agent-image` and `entryPoint` set on every target container, previewing a patched task definition works offline; only `--register` and `--deploy` then need credentials.
 
 Configure credentials once with `armoctl configure` (see [Configure once](#configure-once) for the chat-driven, interactive, and env-var paths). They persist to `~/.armoctl/config.yaml` (mode 0600). Env vars (`ARMO_CUSTOMER_GUID`, `ARMO_ACCESS_KEY`, `ARMO_API_BASE_URL`, and `ARMO_API_URL` for the legacy ECS/version-check host) override the config file for the current shell.
 
@@ -146,12 +146,14 @@ armoctl version
 When you patch a task definition, armoctl:
 
 1. Adds a `sidecar-ptrace` container running the ARMO agent with `SYS_PTRACE` capability
-2. Wraps each target container's command to launch through the ptrace shim
+2. Prepends the ptrace shim to each target container's `entryPoint`, so the container starts through the shim with its original argv. When the task definition does not set `entryPoint` (or sets neither `entryPoint` nor `command`), armoctl reads the image ENTRYPOINT/CMD from its registry
 3. Sets `pidMode` to `"task"` for cross-container visibility
 4. Adds `shared-data` and `profiles-data` volumes
 5. Optionally adds a `volume-fixer` init container that prepares shared volumes (`--volume-fixer`)
 
-Containers without a `command` (relying on image ENTRYPOINT/CMD) are instrumented via dependency and volume mounts but their entrypoint is not modified.
+If armoctl cannot read an image's ENTRYPOINT/CMD (registry unreachable, no credentials, no `linux` image for the task's CPU architecture), patching fails and the error names each affected container. Fix it by setting `entryPoint` and `command` explicitly for that container, or leave the container out of the targets with `--container`. Patching never skips a target container silently.
+
+The image ENTRYPOINT/CMD copied into the task definition is a snapshot: if a container's image later changes its ENTRYPOINT/CMD, re-run `ecs patch` on the unpatched task definition. On arm64 without `runtimePlatform.cpuArchitecture: ARM64`, armoctl reads the amd64 variant of the image. See [docs/features/ecs-patch-wrapping.md](docs/features/ecs-patch-wrapping.md).
 
 ## 🚩 Flags reference
 

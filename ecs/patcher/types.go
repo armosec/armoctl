@@ -1,11 +1,13 @@
 package patcher
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"unicode"
 
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
 
 // TaskDefinition is a type alias for the AWS SDK RegisterTaskDefinitionInput.
@@ -23,6 +25,22 @@ type PatchOptions struct {
 	// VolumeFixer includes a volume-fixer init container that runs
 	// chmod/chown on the shared volume. Disabled by default.
 	VolumeFixer bool
+
+	// Resolver reads an image's ENTRYPOINT/CMD. It is consulted only for
+	// target containers whose task definition does not set entryPoint.
+	Resolver ImageConfigResolver
+}
+
+// ImageConfig is the part of an image's config that decides its argv.
+type ImageConfig struct {
+	Entrypoint []string
+	Cmd        []string
+}
+
+// ImageConfigResolver reads the ENTRYPOINT/CMD of a container image for the
+// given task CPU architecture ("" means the ECS default, X86_64).
+type ImageConfigResolver interface {
+	Resolve(ctx context.Context, image string, arch ecstypes.CPUArchitecture) (ImageConfig, error)
 }
 
 // SidecarConfig holds configuration for the injected sidecar container.

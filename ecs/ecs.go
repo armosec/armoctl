@@ -3,11 +3,14 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/armosec/armoctl/cmd/cliclient"
+	"github.com/armosec/armoctl/ecs/imageconfig"
 	"github.com/armosec/armoctl/ecs/operator"
 	"github.com/armosec/armoctl/ecs/patcher"
 	"github.com/armosec/armoctl/internal/config"
@@ -38,10 +41,26 @@ func init() {
 func patchOpts(cmd *cobra.Command) patcher.PatchOptions {
 	containers, _ := cmd.Flags().GetStringSlice("container")
 	volumeFixer, _ := cmd.Flags().GetBool("volume-fixer")
+	// Without AWS config, ECR images can't be read but other registries can,
+	// so a load failure only disables ECR auth.
+	var awsCfg *aws.Config
+	if cfg, err := awsconfig.LoadDefaultConfig(cmd.Context()); err == nil {
+		awsCfg = &cfg
+	}
 	return patcher.PatchOptions{
 		Containers:  containers,
 		VolumeFixer: volumeFixer,
+		Resolver:    imageconfig.New(awsCfg),
 	}
+}
+
+// registeredMessage is printed after registering a patched task definition.
+// The revision ARN is what the next step (aws ecs update-service) needs.
+func registeredMessage(arn, family string) string {
+	if arn == "" {
+		arn = family
+	}
+	return "Registered task definition: " + arn
 }
 
 // regionFromARN returns the region of an AWS ARN, or "" when s is not an ARN.
@@ -90,7 +109,7 @@ func sidecarConfig(cmd *cobra.Command, regionHint string) (patcher.SidecarConfig
 
 // patchAndPrint patches a task definition and prints the JSON result to stdout.
 func patchAndPrint(cmd *cobra.Command, td *patcher.TaskDefinition, opts patcher.PatchOptions, sidecar patcher.SidecarConfig) error {
-	if err := patcher.Patch(td, opts, sidecar); err != nil {
+	if err := patcher.Patch(cmd.Context(), td, opts, sidecar); err != nil {
 		return fmt.Errorf("patching task definition: %w", err)
 	}
 	out, err := patcher.MarshalTaskDef(td)
