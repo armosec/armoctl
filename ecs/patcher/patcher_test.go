@@ -1,6 +1,8 @@
 package patcher
 
 import (
+	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,7 +41,7 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		AccessKey:    "test-key-456",
 	}
 
-	if err := Patch(td, opts, sidecar); err != nil {
+	if err := Patch(context.Background(), td, testOpts(opts), sidecar); err != nil {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
@@ -100,14 +102,16 @@ func TestPatchMinimalTaskDef(t *testing.T) {
 		t.Error("app container missing dependsOn sidecar-ptrace HEALTHY")
 	}
 
-	expectedCmd := []string{"/tmp/shared/ptrace-shim", "nginx", "-g", "daemon off;"}
-	if len(app.Command) != len(expectedCmd) {
-		t.Fatalf("expected app command %v, got %v", expectedCmd, app.Command)
+	if want := []string{shimPath}; !slices.Equal(app.EntryPoint, want) {
+		t.Errorf("app entryPoint = %v, want %v", app.EntryPoint, want)
 	}
-	for i, v := range expectedCmd {
-		if app.Command[i] != v {
-			t.Fatalf("expected app command %v, got %v", expectedCmd, app.Command)
-		}
+	if want := []string{"nginx", "-g", "daemon off;"}; !slices.Equal(app.Command, want) {
+		t.Errorf("app command = %v, want %v", app.Command, want)
+	}
+
+	wantHealth := []string{"CMD", "/usr/bin/ptrace-agent", "--health", "--shim"}
+	if sc.HealthCheck == nil || !slices.Equal(sc.HealthCheck.Command, wantHealth) {
+		t.Errorf("sidecar health check = %v, want %v", sc.HealthCheck, wantHealth)
 	}
 
 	if td.PidMode != ecstypes.PidModeTask {
@@ -146,7 +150,7 @@ func TestPatchSidecarInheritsLogConfiguration(t *testing.T) {
 		},
 	}
 
-	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+	if err := Patch(context.Background(), td, testOpts(PatchOptions{}), SidecarConfig{Image: "ptrace:latest"}); err != nil {
 		t.Fatalf("Patch() error: %v", err)
 	}
 
@@ -204,7 +208,7 @@ func TestPatchSelectiveContainers(t *testing.T) {
 		AccessKey:    "test-key",
 	}
 
-	if err := Patch(td, opts, sidecar); err != nil {
+	if err := Patch(context.Background(), td, testOpts(opts), sidecar); err != nil {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
@@ -236,7 +240,7 @@ func TestPatchSelectiveContainers(t *testing.T) {
 		}
 	}
 
-	if len(worker.Command) > 0 && worker.Command[0] == "/tmp/shared/ptrace-shim" {
+	if len(worker.EntryPoint) > 0 || (len(worker.Command) > 0 && worker.Command[0] == shimPath) {
 		t.Error("worker command should NOT be wrapped with ptrace-shim")
 	}
 }
@@ -263,70 +267,12 @@ func TestPatchAlreadyPatched(t *testing.T) {
 		AccessKey:    "test-key",
 	}
 
-	err := Patch(td, opts, sidecar)
+	err := Patch(context.Background(), td, testOpts(opts), sidecar)
 	if err == nil {
 		t.Fatal("expected error for already-patched task definition, got nil")
 	}
 	if !strings.Contains(err.Error(), "already patched") {
 		t.Errorf("expected 'already patched' in error message, got: %v", err)
-	}
-}
-
-func TestPatchEmptyCommand(t *testing.T) {
-	td := &TaskDefinition{
-		Family: aws.String("no-command-task"),
-		ContainerDefinitions: []ecstypes.ContainerDefinition{
-			{
-				Name:      aws.String("app"),
-				Image:     aws.String("nginx:latest"),
-				Essential: aws.Bool(true),
-				// No Command — relies on image ENTRYPOINT/CMD.
-			},
-		},
-	}
-
-	opts := PatchOptions{}
-	sidecar := SidecarConfig{
-		Image:        "015253967648.dkr.ecr.eu-north-1.amazonaws.com/ecs-ptrace-agent:latest",
-		CustomerGUID: "test-guid",
-		AccessKey:    "test-key",
-	}
-
-	if err := Patch(td, opts, sidecar); err != nil {
-		t.Fatalf("Patch() returned error: %v", err)
-	}
-
-	containers := containersByName(td)
-
-	app := containers["app"]
-	if app == nil {
-		t.Fatal("app container not found")
-	}
-
-	if len(app.Command) > 0 {
-		t.Errorf("expected empty command for container without original command, got %v", app.Command)
-	}
-
-	foundDep := false
-	for _, dep := range app.DependsOn {
-		if aws.ToString(dep.ContainerName) == sidecarName && dep.Condition == ecstypes.ContainerConditionHealthy {
-			foundDep = true
-			break
-		}
-	}
-	if !foundDep {
-		t.Error("app container missing dependsOn sidecar-ptrace HEALTHY")
-	}
-
-	hasSharedMount := false
-	for _, mp := range app.MountPoints {
-		if aws.ToString(mp.SourceVolume) == sharedVolume {
-			hasSharedMount = true
-			break
-		}
-	}
-	if !hasSharedMount {
-		t.Error("app container missing shared-data mount")
 	}
 }
 
@@ -351,7 +297,7 @@ func TestPatchPreservesPrivileged(t *testing.T) {
 		AccessKey:    "test-key",
 	}
 
-	if err := Patch(td, opts, sidecar); err != nil {
+	if err := Patch(context.Background(), td, testOpts(opts), sidecar); err != nil {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
@@ -387,7 +333,7 @@ func TestPatchWithVolumeFixer(t *testing.T) {
 		AccessKey:    "test-key",
 	}
 
-	if err := Patch(td, opts, sidecar); err != nil {
+	if err := Patch(context.Background(), td, testOpts(opts), sidecar); err != nil {
 		t.Fatalf("Patch() returned error: %v", err)
 	}
 
@@ -446,7 +392,7 @@ func TestPatchSidecarLogConfigSkipsContainersWithoutLogConfig(t *testing.T) {
 		},
 	}
 
-	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+	if err := Patch(context.Background(), td, testOpts(PatchOptions{}), SidecarConfig{Image: "ptrace:latest"}); err != nil {
 		t.Fatalf("Patch() error: %v", err)
 	}
 
@@ -480,7 +426,7 @@ func TestPatchSidecarNoLogConfigWhenNoTargetHasOne(t *testing.T) {
 		},
 	}
 
-	if err := Patch(td, PatchOptions{}, SidecarConfig{Image: "ptrace:latest"}); err != nil {
+	if err := Patch(context.Background(), td, testOpts(PatchOptions{}), SidecarConfig{Image: "ptrace:latest"}); err != nil {
 		t.Fatalf("Patch() error: %v", err)
 	}
 
@@ -490,49 +436,6 @@ func TestPatchSidecarNoLogConfigWhenNoTargetHasOne(t *testing.T) {
 	}
 	if sc.LogConfiguration != nil {
 		t.Errorf("expected nil LogConfiguration when no target has one, got %+v", sc.LogConfiguration)
-	}
-}
-
-func TestWrapCommand(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []string
-		expected []string
-	}{
-		{
-			name:     "simple command",
-			input:    []string{"nginx"},
-			expected: []string{"/tmp/shared/ptrace-shim", "nginx"},
-		},
-		{
-			name:     "command with args",
-			input:    []string{"nginx", "-g", "daemon off;"},
-			expected: []string{"/tmp/shared/ptrace-shim", "nginx", "-g", "daemon off;"},
-		},
-		{
-			name:     "sh -c with quotes",
-			input:    []string{"sh", "-c", `echo "hello"`},
-			expected: []string{"/tmp/shared/ptrace-shim", "sh", "-c", `echo "hello"`},
-		},
-		{
-			name:     "single element",
-			input:    []string{"python"},
-			expected: []string{"/tmp/shared/ptrace-shim", "python"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := wrapCommand(tt.input)
-			if len(got) != len(tt.expected) {
-				t.Fatalf("wrapCommand(%v) = %v, want %v", tt.input, got, tt.expected)
-			}
-			for i := range got {
-				if got[i] != tt.expected[i] {
-					t.Fatalf("wrapCommand(%v) = %v, want %v", tt.input, got, tt.expected)
-				}
-			}
-		})
 	}
 }
 
@@ -714,7 +617,7 @@ func TestMarshalRoundTrip(t *testing.T) {
 		CustomerGUID: "test-guid",
 		AccessKey:    "test-key",
 	}
-	if err := Patch(td, opts, sidecar); err != nil {
+	if err := Patch(context.Background(), td, testOpts(opts), sidecar); err != nil {
 		t.Fatalf("Patch() error: %v", err)
 	}
 

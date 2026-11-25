@@ -146,12 +146,12 @@ armoctl version
 When you patch a task definition, armoctl:
 
 1. Adds a `sidecar-ptrace` container running the ARMO agent with `SYS_PTRACE` capability
-2. Wraps each target container's command to launch through the ptrace shim
+2. Prepends the ptrace shim to each target container's `entryPoint`, so the container starts through the shim with its original argv. When the task definition does not set `entryPoint` (or sets neither `entryPoint` nor `command`), armoctl reads the image ENTRYPOINT/CMD from its registry
 3. Sets `pidMode` to `"task"` for cross-container visibility
 4. Adds `shared-data` and `profiles-data` volumes
 5. Optionally adds a `volume-fixer` init container that prepares shared volumes (`--volume-fixer`)
 
-Containers without a `command` (relying on image ENTRYPOINT/CMD) are instrumented via dependency and volume mounts but their entrypoint is not modified.
+If armoctl cannot read an image's ENTRYPOINT/CMD (registry unreachable, no credentials, no `linux` image for the task's CPU architecture), patching fails and the error names each affected container. Fix it by setting `entryPoint` and `command` explicitly for that container, or leave the container out of the targets with `--container`. Patching never skips a target container silently.
 
 ## 🚩 Flags reference
 
