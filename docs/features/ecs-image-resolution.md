@@ -9,6 +9,8 @@ related_code:
   - ecs/aws.go
   - ecs/operator/register.go
   - ecs/operator/install.go
+  - ecs/operator/upgrade.go
+  - ecs/operator/cloudformation.go
 ---
 
 # ECS image resolution and cluster registration
@@ -32,10 +34,11 @@ armoctl builds `repository:version` (`internal/sensors`).
 
 | Command | Region used | Override |
 |---|---|---|
-| `ecs operator install -c <arn>` | the cluster ARN's region | `--operator-image` |
-| `ecs patch`, `ecs instrument` | the AWS config region (`AWS_REGION` or profile) | `--agent-image` |
+| `ecs operator install -c <arn>`, `ecs operator upgrade -c <arn>` | the cluster ARN's region | `--operator-image` |
+| `ecs patch <task-def ARN>`, `ecs instrument -c <cluster ARN>` | the ARN's region | `--agent-image` |
+| `ecs patch <file or ->`, `ecs instrument -c <cluster name>` | the AWS config region (`AWS_REGION` or profile) | `--agent-image` |
 
-An explicit flag skips the lookup entirely (works offline). If the lookup
+An explicit flag skips the image lookup. `--agent-image` then makes no backend call at all (offline preview works); `--operator-image` still leaves the cluster registration below in place, since that is what grants pull access. If the lookup
 fails, or the API returns no image for the region, the command stops with an
 error naming the flag. There is no fallback to a guessed image.
 
@@ -50,10 +53,19 @@ way the ARMO UI does, before creating the operator stack:
    the pull policy of ARMO's ECS repositories in that region (operator, EC2
    agent, ptrace sidecar).
 
-Registration is processed asynchronously, so the GET is retried every 3 s for
-up to 60 s while it answers "not found". A failed POST (for example, the
-cluster is already registered) is ignored when the GET succeeds. Auth errors
-stop immediately.
+Registration is processed asynchronously, so after a successful POST the GET
+is retried every 3 s for up to 60 s while it answers "not found". A POST
+auth error stops before the GET. Any other failed POST is ignored when the GET
+succeeds (the cluster is already registered) and reported at once when the GET
+answers "not found".
 
 Run `operator install` before `ecs patch`: until the account is registered for
 the region, Fargate tasks cannot pull the sidecar image.
+
+## Upgrading the operator
+
+`ecs operator upgrade -c <arn>` resolves the operator image the same way and
+updates the stack's `EcsOperatorImage` parameter, keeping the template and every
+other parameter. CloudFormation then rolls the service. If the stack already
+runs that image, nothing changes. (Images are pinned to a version, so a plain
+redeploy would re-pull the same tag.)

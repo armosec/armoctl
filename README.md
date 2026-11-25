@@ -101,7 +101,7 @@ Configure credentials once with `armoctl configure` (see [Configure once](#confi
 
 Takes a task definition JSON, injects the ARMO ptrace sidecar, and outputs the patched version.
 
-Run `armoctl ecs operator install -c <cluster-arn>` for the cluster first: it registers the cluster with ARMO and grants your AWS account pull access to ARMO's agent images in that region. The agent image (`<ARMO ECR>/ecs-ptrace-agent:<version>`) comes from the ARMO API for the region of your AWS config (`AWS_REGION` or your profile); see [docs/features/ecs-image-resolution.md](docs/features/ecs-image-resolution.md).
+Run `armoctl ecs operator install -c <cluster-arn>` for the cluster first: it registers the cluster with ARMO and grants your AWS account pull access to ARMO's agent images in that region. The agent image (`<ARMO ECR>/ecs-ptrace-agent:<version>`) comes from the ARMO API for the region of the task-definition ARN you pass, or else of your AWS config (`AWS_REGION` or your profile); see [docs/features/ecs-image-resolution.md](docs/features/ecs-image-resolution.md).
 
 ```bash
 # From a file

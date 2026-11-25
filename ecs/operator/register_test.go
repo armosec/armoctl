@@ -67,8 +67,21 @@ func TestRegister_AlreadyRegistered(t *testing.T) {
 	}
 }
 
-func TestRegister_AuthError_NoRetry(t *testing.T) {
-	c, gets := fakeAccounts(t, http.StatusForbidden, `{"message":"forbidden"}`, 403)
+func TestRegister_PostAuthError_NoGet(t *testing.T) {
+	c, gets := fakeAccounts(t, http.StatusForbidden, `{"message":"forbidden"}`, 200)
+
+	err := registerCluster(context.Background(), c, testClusterARN, time.Second, 5*time.Millisecond)
+	var ce *clierr.Error
+	if !errors.As(err, &ce) || ce.Code != clierr.CodeAuth {
+		t.Fatalf("error = %v; want clierr CodeAuth", err)
+	}
+	if *gets != 0 {
+		t.Errorf("GETs = %d, want 0", *gets)
+	}
+}
+
+func TestRegister_GetAuthError_NoRetry(t *testing.T) {
+	c, gets := fakeAccounts(t, http.StatusCreated, `{}`, 403)
 
 	err := registerCluster(context.Background(), c, testClusterARN, time.Second, 5*time.Millisecond)
 	var ce *clierr.Error
@@ -77,6 +90,18 @@ func TestRegister_AuthError_NoRetry(t *testing.T) {
 	}
 	if *gets != 1 {
 		t.Errorf("GETs = %d, want 1", *gets)
+	}
+}
+
+func TestRegister_PostFailedAndNotFound_FailsFast(t *testing.T) {
+	c, gets := fakeAccounts(t, http.StatusBadRequest, `{"message":"bad cluster"}`, 404)
+
+	err := registerCluster(context.Background(), c, testClusterARN, time.Minute, 5*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "bad cluster") {
+		t.Fatalf("error = %v; want the POST error", err)
+	}
+	if *gets != 1 {
+		t.Errorf("GETs = %d, want 1 (no polling after a failed POST)", *gets)
 	}
 }
 

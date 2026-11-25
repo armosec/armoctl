@@ -41,7 +41,7 @@ func runPatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading task definition: %w", err)
 	}
 
-	sidecar, err := sidecarConfig(cmd)
+	sidecar, err := sidecarConfig(cmd, regionFromARN(args[0]))
 	if err != nil {
 		return err
 	}

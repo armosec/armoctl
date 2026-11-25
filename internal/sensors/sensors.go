@@ -1,6 +1,6 @@
 // Package sensors resolves the ECS sensor images (ptrace sidecar, operator)
 // that armoctl installs. The backend is the single source of truth: its
-// GET /sensors/version returns the pinned versions and, for a region, the
+// GET /api/v1/sensors/version returns the pinned versions and, for a region, the
 // ECR repositories in ARMO's account for the current environment.
 package sensors
 

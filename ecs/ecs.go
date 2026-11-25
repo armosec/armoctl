@@ -3,6 +3,7 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -43,10 +44,20 @@ func patchOpts(cmd *cobra.Command) patcher.PatchOptions {
 	}
 }
 
+// regionFromARN returns the region of an AWS ARN, or "" when s is not an ARN.
+func regionFromARN(s string) string {
+	parsed, err := arn.Parse(s)
+	if err != nil {
+		return ""
+	}
+	return parsed.Region
+}
+
 // sidecarConfig builds SidecarConfig from command flags and viper config.
-// Without --agent-image, the image comes from the ARMO backend for the
-// region of the AWS config (the region the task definition is registered in).
-func sidecarConfig(cmd *cobra.Command) (patcher.SidecarConfig, error) {
+// Without --agent-image, the image comes from the ARMO backend for
+// regionHint (the region of a task-definition or cluster ARN the command
+// was given), or else the region of the AWS config.
+func sidecarConfig(cmd *cobra.Command, regionHint string) (patcher.SidecarConfig, error) {
 	agentImage, _ := cmd.Flags().GetString("agent-image")
 
 	if agentImage == "" {
@@ -54,9 +65,12 @@ func sidecarConfig(cmd *cobra.Command) (patcher.SidecarConfig, error) {
 			return patcher.SidecarConfig{}, err
 		}
 		ctx := cmd.Context()
-		region, err := regionFor(ctx)
-		if err != nil {
-			return patcher.SidecarConfig{}, fmt.Errorf("cannot pick the agent image: %w; set AWS_REGION (or a region in your AWS profile), or pass --agent-image <image>", err)
+		region := regionHint
+		if region == "" {
+			var err error
+			if region, err = regionFor(ctx); err != nil {
+				return patcher.SidecarConfig{}, fmt.Errorf("cannot pick the agent image: %w; set AWS_REGION (or a region in your AWS profile), or pass --agent-image <image>", err)
+			}
 		}
 		versions, err := fetchSensors(ctx, cliclient.Default(viper.GetString)(cmd), region)
 		if err != nil {
