@@ -134,3 +134,24 @@ func TestSidecarConfig_ARNRegionWins(t *testing.T) {
 		t.Errorf("Image = %q, want %q", cfg.Image, want)
 	}
 }
+
+func TestPatchOptsSetsResolver(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().StringSlice("container", nil, "")
+	cmd.Flags().Bool("volume-fixer", false, "")
+	cmd.SetContext(context.Background())
+
+	if patchOpts(cmd).Resolver == nil {
+		t.Fatal("patchOpts() did not set an image config resolver")
+	}
+}
+
+func TestRegisteredMessage(t *testing.T) {
+	arn := "arn:aws:ecs:eu-west-1:123456789012:task-definition/web:7"
+	if got, want := registeredMessage(arn, "web"), "Registered task definition: "+arn; got != want {
+		t.Errorf("registeredMessage() = %q, want %q", got, want)
+	}
+	if got, want := registeredMessage("", "web"), "Registered task definition: web"; got != want {
+		t.Errorf("registeredMessage() with no ARN = %q, want %q", got, want)
+	}
+}

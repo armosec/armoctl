@@ -203,7 +203,7 @@ func wrapContainer(ctx context.Context, c *ecstypes.ContainerDefinition, arch ec
 	fail := func(cause error) (argv, error) {
 		return argv{}, fmt.Errorf("container %q: cannot read ENTRYPOINT/CMD of image %q: %v. "+
 			"Set \"entryPoint\" and \"command\" explicitly for this container in the task definition, "+
-			"or leave it out of the targets with --container.", aws.ToString(c.Name), image, cause)
+			"or leave it out of the targets with --container", aws.ToString(c.Name), image, cause)
 	}
 	if resolver == nil {
 		return fail(errors.New("no image resolver configured"))

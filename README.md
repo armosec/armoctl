@@ -91,7 +91,7 @@ make armoctl
 
 Most armoctl commands talk to the ARMO platform API and require credentials — the API-backed skills (incidents, vulnerabilities, posture, risks, attack chains, runtime rules/policies, network policies, seccomp, integrations, cloud accounts, repository posture, inventory) authenticate with `customer-guid` and `access-key`. Local helpers like the per-cluster `fields` cheatsheets work offline.
 
-The ECS commands (`ecs patch`, `ecs instrument`) also need credentials: they ask the ARMO API which agent image to use for the AWS region of your AWS config. With an explicit `--agent-image`, previewing a patched task definition works offline; only `--register` and `--deploy` then need credentials.
+The ECS commands (`ecs patch`, `ecs instrument`) also need credentials: they ask the ARMO API which agent image to use for the AWS region of your AWS config. Patching also reads the ENTRYPOINT/CMD of each target container's image from its registry, unless the container sets `entryPoint` in the task definition: ECR images use your AWS credentials, other registries use your Docker credentials or anonymous access. With an explicit `--agent-image` and `entryPoint` set on every target container, previewing a patched task definition works offline; only `--register` and `--deploy` then need credentials.
 
 Configure credentials once with `armoctl configure` (see [Configure once](#configure-once) for the chat-driven, interactive, and env-var paths). They persist to `~/.armoctl/config.yaml` (mode 0600). Env vars (`ARMO_CUSTOMER_GUID`, `ARMO_ACCESS_KEY`, `ARMO_API_BASE_URL`, and `ARMO_API_URL` for the legacy ECS/version-check host) override the config file for the current shell.
 

@@ -136,9 +136,13 @@ func TestPatchResolverErrorLeavesTaskDefUntouched(t *testing.T) {
 	}
 	want := `container "b": cannot read ENTRYPOINT/CMD of image "img-b": unauthorized. ` +
 		`Set "entryPoint" and "command" explicitly for this container in the task definition, ` +
-		`or leave it out of the targets with --container.`
+		`or leave it out of the targets with --container`
 	if !strings.Contains(err.Error(), want) {
 		t.Errorf("error = %q\nwant it to contain %q", err, want)
+	}
+	// The CLI (fang) appends the final period when it renders an error.
+	if strings.HasSuffix(err.Error(), ".") {
+		t.Errorf("error ends with a period; the CLI adds one and would print \"..\": %q", err)
 	}
 	if strings.Contains(err.Error(), `container "a"`) {
 		t.Errorf("error should not mention container a: %q", err)
