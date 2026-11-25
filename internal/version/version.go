@@ -1,7 +1,6 @@
 package version
 
 import (
-	"fmt"
 	"time"
 
 	"golang.org/x/mod/semver"
@@ -13,34 +12,7 @@ const (
 
 	// FetchTimeout is the timeout for fetching version info.
 	FetchTimeout = 5 * time.Second
-
-	// DefaultAgentImageRepo is the ECR repository for the ptrace agent image.
-	// The %s placeholder is for the tag/version.
-	DefaultAgentImageRepo = "015253967648.dkr.ecr.eu-north-1.amazonaws.com/ecs-ptrace-agent:%s"
-
-	// DefaultOperatorImageRepo is the ECR repository for the operator image.
-	// The first %s is for region, second %s is for tag/version.
-	DefaultOperatorImageRepo = "015253967648.dkr.ecr.%s.amazonaws.com/ecs-operator:%s"
-
-	// FallbackTag is used when version info is not available.
-	FallbackTag = "latest"
 )
-
-// Versions holds component version strings cached on disk for the ECS
-// image helpers (GetAgentImage / GetOperatorImage). The fetch flow that
-// used to populate this struct from the cadashboardbe API has been
-// removed — armoctl's own update check now reads from the binary
-// distribution CDN directly. The struct itself is preserved so the
-// existing on-disk cache file can still be read by ECS callers, which
-// fall back to FallbackTag when no cached value is available.
-type Versions struct {
-	HostAgent   string `json:"hostAgent"`
-	NodeAgent   string `json:"nodeAgent"`
-	ECSAgent    string `json:"ecsAgent"`
-	ECSOperator string `json:"ecsOperator"`
-	Armoctl     string `json:"armoctl"`
-	PtraceAgent string `json:"ptraceAgent"`
-}
 
 // UpdateInfo contains information about available updates.
 type UpdateInfo struct {
@@ -87,30 +59,4 @@ func ensureVPrefix(v string) string {
 		return "v" + v
 	}
 	return v
-}
-
-// GetAgentImage returns the ptrace agent image with the latest tag from cache.
-// Falls back to "latest" tag if version info is not available.
-func GetAgentImage() string {
-	tag := FallbackTag
-
-	cached := LoadCache()
-	if cached != nil && cached.Versions.PtraceAgent != "" {
-		tag = cached.Versions.PtraceAgent
-	}
-
-	return fmt.Sprintf(DefaultAgentImageRepo, tag)
-}
-
-// GetOperatorImage returns the operator image for a region with the latest tag from cache.
-// Falls back to "latest" tag if version info is not available.
-func GetOperatorImage(region string) string {
-	tag := FallbackTag
-
-	cached := LoadCache()
-	if cached != nil && cached.Versions.ECSOperator != "" {
-		tag = cached.Versions.ECSOperator
-	}
-
-	return fmt.Sprintf(DefaultOperatorImageRepo, region, tag)
 }

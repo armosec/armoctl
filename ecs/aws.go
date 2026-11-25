@@ -21,6 +21,18 @@ func newECSClient(ctx context.Context) (*awsecs.Client, error) {
 	return awsecs.NewFromConfig(cfg), nil
 }
 
+// awsRegion returns the region of the default AWS config.
+func awsRegion(ctx context.Context) (string, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("loading AWS config: %w", err)
+	}
+	if cfg.Region == "" {
+		return "", fmt.Errorf("no AWS region configured")
+	}
+	return cfg.Region, nil
+}
+
 // describeTaskDef fetches a task definition by ARN and converts it to
 // RegisterTaskDefinitionInput via JSON round-trip. This works because the
 // response type is a superset of the input type, and json.Unmarshal performs

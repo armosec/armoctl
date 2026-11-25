@@ -91,7 +91,7 @@ make armoctl
 
 Most armoctl commands talk to the ARMO platform API and require credentials — the API-backed skills (incidents, vulnerabilities, posture, risks, attack chains, runtime rules/policies, network policies, seccomp, integrations, cloud accounts, repository posture, inventory) authenticate with `customer-guid` and `access-key`. Local helpers like the per-cluster `fields` cheatsheets work offline.
 
-The legacy ECS commands (`ecs patch`, `ecs instrument`) are the exception: previewing a patched task definition works offline; only `--register` and `--deploy` need credentials.
+The ECS commands (`ecs patch`, `ecs instrument`) also need credentials: they ask the ARMO API which agent image to use for the AWS region of your AWS config. With an explicit `--agent-image`, previewing a patched task definition works offline; only `--register` and `--deploy` then need credentials.
 
 Configure credentials once with `armoctl configure` (see [Configure once](#configure-once) for the chat-driven, interactive, and env-var paths). They persist to `~/.armoctl/config.yaml` (mode 0600). Env vars (`ARMO_CUSTOMER_GUID`, `ARMO_ACCESS_KEY`, `ARMO_API_BASE_URL`, and `ARMO_API_URL` for the legacy ECS/version-check host) override the config file for the current shell.
 
@@ -100,6 +100,8 @@ Configure credentials once with `armoctl configure` (see [Configure once](#confi
 ### `ecs patch` — Patch a task definition file
 
 Takes a task definition JSON, injects the ARMO ptrace sidecar, and outputs the patched version.
+
+Run `armoctl ecs operator install -c <cluster-arn>` for the cluster first: it registers the cluster with ARMO and grants your AWS account pull access to ARMO's agent images in that region. The agent image (`<ARMO ECR>/ecs-ptrace-agent:<version>`) comes from the ARMO API for the region of your AWS config (`AWS_REGION` or your profile); see [docs/features/ecs-image-resolution.md](docs/features/ecs-image-resolution.md).
 
 ```bash
 # From a file
@@ -118,7 +120,7 @@ armoctl ecs patch --container web --container api task-definition.json
 armoctl ecs patch --register task-definition.json
 
 # Use a custom agent image
-armoctl ecs patch --agent-image 015253967648.dkr.ecr.eu-north-1.amazonaws.com/ecs-ptrace-agent:v1.0.0 task-definition.json
+armoctl ecs patch --agent-image my-registry.example.com/ecs-ptrace-agent:v1.0.0 task-definition.json
 ```
 
 ### `ecs instrument` — Instrument a live ECS service
@@ -161,7 +163,7 @@ Containers without a `command` (relying on image ENTRYPOINT/CMD) are instrumente
 | `--access-key` | `ARMO_ACCESS_KEY` | ARMO API access key. Avoid in shell history; prefer `--access-key-stdin`. |
 | `--access-key-stdin` | | Read the access key from stdin. Recommended for scripts and AI agents. |
 | `--api-base-url` | `ARMO_API_BASE_URL` | Agent-bridge API host used by every skill cluster (default: `api.armosec.io`). |
-| `--api-url` | `ARMO_API_URL` | Legacy backend host used by ECS operator install and version-check (default: `cloud.armosec.io`). |
+| `--api-url` | `ARMO_API_URL` | Legacy backend host passed to the ECS operator and used by version-check (default: `cloud.armosec.io`). |
 
 Env vars are also honored by the rest of armoctl at runtime, regardless of whether `armoctl configure` was used.
 
@@ -169,7 +171,7 @@ Env vars are also honored by the rest of armoctl at runtime, regardless of wheth
 
 | Flag | Description |
 |------|-------------|
-| `--agent-image` | Agent sidecar image (default: `015253967648.dkr.ecr.eu-north-1.amazonaws.com/ecs-ptrace-agent:latest`). |
+| `--agent-image` | Agent sidecar image (default: the image the ARMO API returns for your AWS region; skips the lookup when set). |
 | `--container` | Container names to patch (repeatable; default: all). |
 | `--volume-fixer` | Include a volume-fixer init container to chmod the shared volume. |
 | `--register` | Register the patched task definition with AWS (`patch` only, requires credentials). |

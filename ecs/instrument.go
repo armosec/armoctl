@@ -47,7 +47,11 @@ func runInstrument(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("fetching service task definition: %w", err)
 	}
 
-	if err := patchAndPrint(cmd, td, patchOpts(cmd), sidecarConfig(cmd)); err != nil {
+	sidecar, err := sidecarConfig(cmd)
+	if err != nil {
+		return err
+	}
+	if err := patchAndPrint(cmd, td, patchOpts(cmd), sidecar); err != nil {
 		return err
 	}
 
