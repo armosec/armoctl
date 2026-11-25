@@ -47,6 +47,21 @@ otherwise amd64) when the image is multi-arch. Registry auth, in order:
 Lookups happen only for containers that need them; a task definition that sets
 `entryPoint` on every target container patches offline.
 
+## Caveats
+
+- **The argv is a snapshot.** For containers without `entryPoint`, the image
+  ENTRYPOINT (and CMD, when `command` is empty) is copied into the task
+  definition at patch time. If you later change only `image` (a CI step that
+  renders a new tag, or a mutable tag such as `:latest` being re-pushed) and
+  the new image has a different ENTRYPOINT/CMD, the container keeps running
+  the old argv. Re-run `armoctl ecs patch` on the unpatched task definition
+  whenever the image's ENTRYPOINT/CMD changes.
+- **Architecture comes from `runtimePlatform`.** Without
+  `runtimePlatform.cpuArchitecture`, armoctl reads the amd64 variant. EC2 tasks
+  on Graviton that leave it unset fail for arm64-only images ("no linux/amd64
+  variant"), and for multi-arch images get the amd64 config. Set
+  `runtimePlatform.cpuArchitecture: ARM64` in that case.
+
 ## Failure
 
 All lookups run before the task definition is changed. If any fails, `patch`

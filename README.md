@@ -153,6 +153,8 @@ When you patch a task definition, armoctl:
 
 If armoctl cannot read an image's ENTRYPOINT/CMD (registry unreachable, no credentials, no `linux` image for the task's CPU architecture), patching fails and the error names each affected container. Fix it by setting `entryPoint` and `command` explicitly for that container, or leave the container out of the targets with `--container`. Patching never skips a target container silently.
 
+The image ENTRYPOINT/CMD copied into the task definition is a snapshot: if a container's image later changes its ENTRYPOINT/CMD, re-run `ecs patch` on the unpatched task definition. On arm64 without `runtimePlatform.cpuArchitecture: ARM64`, armoctl reads the amd64 variant of the image. See [docs/features/ecs-patch-wrapping.md](docs/features/ecs-patch-wrapping.md).
+
 ## 🚩 Flags reference
 
 ### Credential flags (`armoctl configure` only)
