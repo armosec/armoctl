@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/armosec/armoctl/internal/config"
-	"github.com/armosec/armoctl/internal/version"
 )
 
 // OperatorCmd is the parent command for ECS operator operations.
@@ -67,12 +66,6 @@ func parseClusterARN(clusterARN string) (*ClusterInfo, error) {
 // defaultStackName returns the default CloudFormation stack name for a cluster.
 func defaultStackName(clusterName string) string {
 	return StackNamePrefix + clusterName
-}
-
-// defaultOperatorImage returns the default operator image for a region.
-// Uses the cached version info to get the latest tag.
-func defaultOperatorImage(region string) string {
-	return version.GetOperatorImage(region)
 }
 
 // requireAuth checks credentials, prompting interactively if missing.

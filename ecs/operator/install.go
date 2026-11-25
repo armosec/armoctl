@@ -5,6 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/armosec/armoctl/cmd/cliclient"
 )
 
 var installCmd = &cobra.Command{
@@ -52,10 +54,18 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid cluster ARN: %w", err)
 	}
 
-	// Get flags with defaults
-	operatorImage, _ := cmd.Flags().GetString("operator-image")
-	if operatorImage == "" {
-		operatorImage = defaultOperatorImage(cluster.Region)
+	// Register the cluster with ARMO (as the UI does): it shows up in the UI
+	// and the cluster's AWS account may pull ARMO's ECS images.
+	ctx := cmd.Context()
+	client := cliclient.Default(viper.GetString)(cmd)
+	if err := registerCluster(ctx, client, clusterARN, registerTimeout, registerInterval); err != nil {
+		return err
+	}
+	cmd.PrintErrln("Registered cluster with ARMO and granted image pull access")
+
+	operatorImage, err := operatorImageFor(cmd, client, cluster.Region)
+	if err != nil {
+		return err
 	}
 
 	stackName, _ := cmd.Flags().GetString("stack-name")
@@ -91,7 +101,6 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	cmd.PrintErrln()
 
 	// Create the stack
-	ctx := cmd.Context()
 	if err := CreateStack(ctx, params); err != nil {
 		return err
 	}

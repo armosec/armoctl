@@ -419,3 +419,95 @@ func GetRecentLogs(ctx context.Context, region, logGroup string, limit int) ([]L
 
 	return entries, nil
 }
+
+// upgradeStackParams keeps every stack parameter at its previous value
+// except EcsOperatorImage, which is set to image.
+func upgradeStackParams(image string) []cftypes.Parameter {
+	keep := func(key string) cftypes.Parameter {
+		return cftypes.Parameter{ParameterKey: aws.String(key), UsePreviousValue: aws.Bool(true)}
+	}
+	return []cftypes.Parameter{
+		keep("Region"),
+		keep("EcsClusterName"),
+		keep("CustomerGuid"),
+		keep("AccessKey"),
+		keep("ApiUrl"),
+		{ParameterKey: aws.String("EcsOperatorImage"), ParameterValue: aws.String(image)},
+		keep("CloudWatchLogsGroupName"),
+	}
+}
+
+// isNoUpdatesError reports CloudFormation's answer to an update that would
+// change nothing (the stack already runs that image).
+func isNoUpdatesError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "No updates are to be performed")
+}
+
+// UpdateOperatorImage points the operator stack at image, keeping the
+// template and every other parameter. It returns false, nil when the stack
+// already runs that image.
+func UpdateOperatorImage(ctx context.Context, region, stackName, image string) (bool, error) {
+	client, err := newCFClient(ctx, region)
+	if err != nil {
+		return false, err
+	}
+	_, err = client.UpdateStack(ctx, &cloudformation.UpdateStackInput{
+		StackName:           aws.String(stackName),
+		UsePreviousTemplate: aws.Bool(true),
+		Parameters:          upgradeStackParams(image),
+		Capabilities:        []cftypes.Capability{cftypes.CapabilityCapabilityNamedIam},
+	})
+	if isNoUpdatesError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("updating stack: %w", err)
+	}
+	return true, nil
+}
+
+// updateOutcome classifies a stack status during an update: done reports a
+// terminal status, err a failed or rolled-back update.
+func updateOutcome(status, reason string) (done bool, err error) {
+	switch status {
+	case string(cftypes.StackStatusUpdateComplete):
+		return true, nil
+	case string(cftypes.StackStatusUpdateFailed),
+		string(cftypes.StackStatusUpdateRollbackComplete),
+		string(cftypes.StackStatusUpdateRollbackFailed):
+		if reason == "" {
+			reason = "check CloudFormation console for details"
+		}
+		return true, fmt.Errorf("stack update failed: %s - %s", status, reason)
+	}
+	return false, nil
+}
+
+// WaitForStackUpdate waits for a stack update to finish, reporting progress.
+func WaitForStackUpdate(ctx context.Context, region, stackName string, progress func(status string)) (*StackOutput, error) {
+	client, err := newCFClient(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			output, err := describeStack(ctx, client, stackName)
+			if err != nil {
+				return nil, err
+			}
+			if progress != nil {
+				progress(output.Status)
+			}
+			if done, err := updateOutcome(output.Status, output.StatusReason); done {
+				return output, err
+			}
+		}
+	}
+}

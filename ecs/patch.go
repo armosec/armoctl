@@ -41,7 +41,11 @@ func runPatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading task definition: %w", err)
 	}
 
-	if err := patchAndPrint(cmd, td, patchOpts(cmd), sidecarConfig(cmd)); err != nil {
+	sidecar, err := sidecarConfig(cmd, regionFromARN(args[0]))
+	if err != nil {
+		return err
+	}
+	if err := patchAndPrint(cmd, td, patchOpts(cmd), sidecar); err != nil {
 		return err
 	}
 
